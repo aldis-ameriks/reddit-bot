@@ -11,3 +11,5 @@ CREATE TABLE users_subscriptions
     subreddit varchar(255)                      NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE ON UPDATE CASCADE
 );
+
+CREATE UNIQUE INDEX idx_users_subscriptions ON users_subscriptions (user_id, subreddit);

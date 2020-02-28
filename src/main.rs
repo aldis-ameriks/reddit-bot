@@ -140,10 +140,21 @@ async fn subscriptions(
     db: &DbClient,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if let Ok(res) = db.get_subscriptions() {
-        let text = res.iter().map(|subscription| {
-            format!("{}\n", subscription.subreddit)
-        }).collect::<String>();
-        api.send(message.from.text(format!("You are currently subscribed to:\n{}", text))).await?;
+        let text = res
+            .iter()
+            .map(|subscription| format!("{}\n", subscription.subreddit))
+            .collect::<String>();
+        if let 0 = text.len() {
+            api.send(message.from.text("You have no subscriptions"))
+                .await?;
+        } else {
+            api.send(
+                message
+                    .from
+                    .text(format!("You are currently subscribed to:\n{}", text)),
+            )
+            .await?;
+        }
     }
 
     Ok(())

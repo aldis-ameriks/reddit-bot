@@ -1,66 +1,155 @@
-use serde_json::Value;
-use std::env;
+#[macro_use]
+extern crate diesel;
+extern crate dotenv;
 
+use diesel::prelude::*;
+use dotenv::dotenv;
+use futures::StreamExt;
+use log::Level;
+use log::{error, info};
+use std::env;
+use telegram_bot::*;
+
+use db::DbClient;
+use reddit::fetch_posts;
+
+mod db;
+mod models;
+mod reddit;
+mod schema;
 mod telegram;
 
-#[derive(Debug)]
-struct Post {
-    title: String,
-    link: String,
-}
-
-impl Post {
-    fn format(&self) -> String {
-        format!("{}\n{}", &self.title, &self.link)
-    }
-}
+const HELP_TEXT: &str = r#"
+These are the commands I know
+/start
+/stop
+/subscribe <subreddit>
+/unsubscribe <subreddit>
+/subscriptions
+/help
+"#;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenv().unwrap();
+    simple_logger::init_with_level(Level::Info).expect("Failed to init logger");
     let token = env::var("TG_TOKEN").expect("Missing TG_TOKEN env var");
     let chat_id = env::var("TG_CHAT_ID").expect("Missing TG_CHAT_ID env var");
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let db = DbClient::new(&database_url);
 
-    let telegram_client = telegram::TelegramClient::new(token, chat_id);
-    let subreddits = ["rust", "arduino", "Whatcouldgowrong"];
-    for subreddit in subreddits.iter() {
-        let posts = fetch_posts(subreddit).await?;
-        for post in posts.iter() {
-            telegram_client.send_message(&post.format()).await?;
+    // let subreddits = ["rust", "arduino", "Whatcouldgowrong"];
+    // for subreddit in subreddits.iter() {
+    //     let posts = fetch_posts(subreddit).await?;
+    //     for post in posts.iter() {
+    //         telegram_client.send_message(&post.format()).await?;
+    //     }
+    // }
+
+    let api = Api::new(&token);
+
+    let mut stream = api.stream();
+    while let Some(update) = stream.next().await {
+        let update = update?;
+        if let UpdateKind::Message(message) = update.kind {
+            if let MessageKind::Text { ref data, .. } = message.kind {
+                println!("<{}>: {}", &message.from.first_name, data);
+
+                let data = data.split(" ").collect::<Vec<&str>>();
+                let command = data.get(0).unwrap_or(&"unknown");
+                let payload = data.get(1).cloned();
+
+                match command.as_ref() {
+                    "/start" => start(&api, &message, &db).await?,
+                    "/stop" => stop(&api, &message, &db).await?,
+                    "/subscribe" => subscribe(&api, &message, payload, &db).await?,
+                    "/unsubscribe" => unsubscribe(&api, &message, payload, &db).await?,
+                    "/subscriptions" => subscriptions(&api, &message, &db).await?,
+                    "/help" => help(&api, &message).await?,
+                    _ => {
+                        api.send(message.from.text("Say what?")).await?;
+                    }
+                }
+            }
         }
     }
 
     Ok(())
 }
 
-async fn fetch_posts(subreddit: &str) -> Result<Vec<Post>, Box<dyn std::error::Error>> {
-    let url = format!(
-        "https://www.reddit.com/r/{}/top.json?limit=1&t=week",
-        subreddit
-    );
-    let res = reqwest::get(&url).await?;
-    let body = res.text().await?;
-    let body: Value = serde_json::from_str(&body)?;
-    let children = body.get("data").unwrap().get("children").unwrap();
+async fn start(
+    api: &Api,
+    message: &Message,
+    db: &DbClient,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if let Ok(_) = db.create_user(&message.from.id.to_string()) {
+        api.send(message.from.text(HELP_TEXT)).await?;
+    }
+    Ok(())
+}
 
-    let posts = if let Value::Array(children) = children {
-        children
-            .iter()
-            .map(|child| {
-                let title = child.get("data").unwrap().get("title").unwrap();
-                let link = child.get("data").unwrap().get("permalink").unwrap();
-                let title = if let Value::String(v) = title { v } else { "" }.to_string();
-                let link = if let Value::String(v) = link { v } else { "" }.to_string();
-                Post {
-                    title,
-                    link: format!("https://www.reddit.com{}", link),
-                }
-            })
-            .collect()
+async fn stop(
+    api: &Api,
+    message: &Message,
+    db: &DbClient,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if let Ok(_) = db.delete_user(&message.from.id.to_string()) {
+        api.send(message.from.text("User and subscriptions deleted"))
+            .await?;
+    }
+    Ok(())
+}
+
+async fn subscribe(
+    api: &Api,
+    message: &Message,
+    payload: Option<&str>,
+    db: &DbClient,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(value) = payload {
+        if let Ok(_) = db.subscribe(&message.from.id.to_string(), &value) {
+            api.send(message.from.text(format!("Subscribed to: {}", &value))).await?;
+        }
     } else {
-        vec![]
-    };
+        api.send(message.from.text("Missing subreddit")).await?;
+    }
 
-    println!("{:#?}", posts);
+    Ok(())
+}
 
-    Ok(posts)
+async fn unsubscribe(
+    api: &Api,
+    message: &Message,
+    payload: Option<&str>,
+    db: &DbClient,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(value) = payload {
+        if let Ok(_) = db.unsubscribe(&message.from.id.to_string(), &value) {
+            api.send(message.from.text(format!("Unsubscribed from: {}", &value))).await?;
+        }
+    } else {
+        api.send(message.from.text("Missing subreddit")).await?;
+    }
+
+    Ok(())
+}
+
+async fn subscriptions(
+    api: &Api,
+    message: &Message,
+    db: &DbClient,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if let Ok(res) = db.get_subscriptions() {
+        let text = res.iter().map(|subscription| {
+            format!("{}\n", subscription.subreddit)
+        }).collect::<String>();
+        api.send(message.from.text(format!("You are currently subscribed to:\n{}", text))).await?;
+    }
+
+    Ok(())
+}
+
+async fn help(api: &Api, message: &Message) -> Result<(), Box<dyn std::error::Error>> {
+    api.send(message.from.text(HELP_TEXT)).await?;
+    Ok(())
 }

@@ -1,10 +1,12 @@
-use crate::db::DbClient;
-use crate::reddit::validate_subreddit;
-use futures::StreamExt;
-use log::{error, info};
 use std::error::Error;
+
+use futures::StreamExt;
+use log::info;
 use telegram_bot::prelude::*;
 use telegram_bot::{Api, Message, MessageKind, UpdateKind};
+
+use crate::db::DbClient;
+use crate::reddit::validate_subreddit;
 
 const HELP_TEXT: &str = r#"
 These are the commands I know
@@ -25,7 +27,10 @@ pub async fn init_bot(token: &str, database_url: &str) -> Result<(), Box<dyn Err
         let update = update?;
         if let UpdateKind::Message(message) = update.kind {
             if let MessageKind::Text { ref data, .. } = message.kind {
-                println!("<{}>: {}", &message.from.first_name, data);
+                info!(
+                    "received message from: {}({}), message: {}",
+                    &message.from.first_name, &message.from.id, data
+                );
 
                 let data = data.split(" ").collect::<Vec<&str>>();
                 let command = data.get(0).unwrap_or(&"unknown");

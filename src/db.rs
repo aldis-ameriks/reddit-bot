@@ -10,7 +10,8 @@ pub struct DbClient(SqliteConnection);
 impl DbClient {
     pub fn new(url: &str) -> DbClient {
         let conn = SqliteConnection::establish(url).expect("Error connecting to {}");
-        conn.execute("PRAGMA foreign_keys = ON");
+        conn.execute("PRAGMA foreign_keys = ON")
+            .expect("Failed to enable foreign key support");
         DbClient(conn)
     }
 
@@ -48,6 +49,7 @@ impl DbClient {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_users(&self) -> Result<Vec<User>, Error> {
         use schema::users::dsl;
         match dsl::users.load::<User>(&self.0) {

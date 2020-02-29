@@ -1,3 +1,4 @@
+use reqwest::{Client, Response};
 use serde_json::Value;
 
 #[derive(Debug)]
@@ -7,12 +8,29 @@ pub struct Post {
 }
 
 impl Post {
-    fn format(&self) -> String {
+    pub fn format(&self) -> String {
         format!("{}\n{}", &self.title, &self.link)
     }
 }
 
-pub async fn fetch_posts(subreddit: &str) -> Result<Vec<Post>, Box<dyn std::error::Error>> {
+pub enum RedditError {
+    NetworkError(reqwest::Error),
+    MalformedResponse(serde_json::error::Error),
+}
+
+impl From<reqwest::Error> for RedditError {
+    fn from(error: reqwest::Error) -> Self {
+        RedditError::NetworkError(error)
+    }
+}
+
+impl From<serde_json::error::Error> for RedditError {
+    fn from(error: serde_json::error::Error) -> Self {
+        RedditError::MalformedResponse(error)
+    }
+}
+
+pub async fn fetch_posts(subreddit: &str) -> Result<Vec<Post>, RedditError> {
     let url = format!(
         "https://www.reddit.com/r/{}/top.json?limit=1&t=week",
         subreddit

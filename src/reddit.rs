@@ -57,8 +57,6 @@ pub async fn fetch_posts(subreddit: &str) -> Result<Vec<Post>, RedditError> {
         vec![]
     };
 
-    println!("{:#?}", posts);
-
     Ok(posts)
 }
 

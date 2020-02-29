@@ -4,6 +4,7 @@ use log::{error, info};
 
 use crate::models::{NewSubscription, Subscription, User};
 use crate::schema;
+use chrono::Utc;
 
 pub struct DbClient(SqliteConnection);
 
@@ -75,6 +76,23 @@ impl DbClient {
             Ok(_) => Ok(()),
             Err(err) => {
                 error!("failed to create new subscription: {}", err);
+                Err(err)
+            }
+        }
+    }
+
+    pub fn update_last_sent(&self, id: i32) -> Result<(), Error> {
+        use schema::users_subscriptions::dsl;
+
+        info!("updating last sent at id: {}", id);
+
+        match diesel::update(dsl::users_subscriptions.find(id))
+            .set(dsl::last_sent_at.eq(Utc::now().to_rfc3339()))
+            .execute(&self.0)
+        {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                error!("failed to update last sent date: {}", err);
                 Err(err)
             }
         }

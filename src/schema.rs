@@ -10,6 +10,7 @@ table! {
         id -> Integer,
         user_id -> Text,
         subreddit -> Text,
+        last_sent_at -> Nullable<Text>,
     }
 }
 

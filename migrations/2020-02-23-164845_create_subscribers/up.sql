@@ -6,9 +6,10 @@ CREATE TABLE users
 
 CREATE TABLE users_subscriptions
 (
-    id        integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-    user_id   varchar(20)                       NOT NULL,
-    subreddit varchar(255)                      NOT NULL,
+    id           integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+    user_id      varchar(20)                       NOT NULL,
+    subreddit    varchar(255)                      NOT NULL,
+    last_sent_at varchar(32),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 

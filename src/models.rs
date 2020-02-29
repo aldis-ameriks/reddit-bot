@@ -13,6 +13,7 @@ pub struct Subscription {
     pub id: i32,
     pub user_id: String,
     pub subreddit: String,
+    pub last_sent_at: Option<String>,
 }
 
 #[derive(Insertable)]

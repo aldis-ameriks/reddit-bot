@@ -44,3 +44,13 @@ pub async fn fetch_posts(subreddit: &str) -> Result<Vec<Post>, Box<dyn std::erro
 
     Ok(posts)
 }
+
+pub async fn validate_subreddit(subreddit: &str) -> bool {
+    let url = format!("https://www.reddit.com/r/{}", subreddit);
+
+    if let Ok(resp) = reqwest::get(&url).await {
+        resp.status().is_success()
+    } else {
+        false
+    }
+}

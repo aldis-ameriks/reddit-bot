@@ -106,12 +106,21 @@ async fn subscribe(
     payload: Option<&str>,
     db: &DbClient,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if let Some(value) = payload {
-        if let Ok(_) = db.subscribe(&message.from.id.to_string(), &value) {
-            api.send(message.from.text(format!("Subscribed to: {}", &value))).await?;
-        }
-    } else {
+    if let None = payload {
         api.send(message.from.text("Missing subreddit")).await?;
+        return Ok(());
+    }
+
+    let payload = payload.unwrap();
+
+    if !validate_subreddit(&payload).await {
+        api.send(message.from.text("Invalid subreddit")).await?;
+        return Ok(());
+    }
+
+    if let Ok(_) = db.subscribe(&message.from.id.to_string(), &payload) {
+        api.send(message.from.text(format!("Subscribed to: {}", &payload)))
+            .await?;
     }
 
     Ok(())

@@ -2,7 +2,7 @@ use diesel::prelude::*;
 use diesel::result::Error;
 use log::{error, info};
 
-use crate::models::{NewSubscription, User, Subscription};
+use crate::models::{NewSubscription, Subscription, User};
 use crate::schema;
 
 pub struct DbClient(SqliteConnection);

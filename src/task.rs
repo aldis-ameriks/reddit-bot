@@ -23,7 +23,7 @@ pub fn init_task(token: &str, database_url: &str) {
 async fn run_task(api: Api, db: DbClient) {
     loop {
         let now = Utc::now();
-        if now.weekday() != Weekday::Sat {
+        if now.weekday() != Weekday::Sun || now.hour() < 12 {
             continue;
         }
 

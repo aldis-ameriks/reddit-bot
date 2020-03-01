@@ -23,6 +23,7 @@ pub fn init_task(token: &str, database_url: &str) {
 async fn run_task(api: Api, db: DbClient) {
     loop {
         let now = Utc::now();
+        // TODO: allow configuring per user and/or per user subscription
         if now.weekday() != Weekday::Sun || now.hour() < 12 {
             continue;
         }

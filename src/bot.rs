@@ -125,7 +125,7 @@ async fn subscriptions(
     message: &Message,
     db: &DbClient,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if let Ok(res) = db.get_subscriptions() {
+    if let Ok(res) = db.get_user_subscriptions(&message.from.id.to_string()) {
         let text = res
             .iter()
             .map(|subscription| format!("{}\n", subscription.subreddit))

@@ -129,4 +129,18 @@ impl DbClient {
             }
         }
     }
+
+    pub fn get_user_subscriptions(&self, user_id: &str) -> Result<Vec<Subscription>, Error> {
+        use schema::users_subscriptions::dsl;
+        match dsl::users_subscriptions
+            .filter(dsl::user_id.eq(user_id))
+            .load::<Subscription>(&self.0)
+        {
+            Ok(result) => Ok(result),
+            Err(err) => {
+                error!("failed to get subscriptions: {}", err);
+                Err(err)
+            }
+        }
+    }
 }

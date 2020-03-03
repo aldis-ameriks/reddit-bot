@@ -62,23 +62,22 @@ impl DbClient {
         }
     }
 
-    pub fn subscribe(&self, user_id: &str, subreddit: &str) -> Result<(), Error> {
+    pub fn subscribe(&self, user_id: &str, subreddit: &str) -> Result<Subscription, Error> {
         use schema::users_subscriptions::dsl;
 
         info!("subscribing user_id: {}, subreddit: {}", user_id, subreddit);
 
         let new_subscription = NewSubscription { user_id, subreddit };
 
-        match diesel::insert_into(dsl::users_subscriptions)
-            .values(&new_subscription)
-            .execute(&self.0)
-        {
-            Ok(_) => Ok(()),
-            Err(err) => {
-                error!("failed to create new subscription: {}", err);
-                Err(err)
-            }
-        }
+        self.0.transaction::<_, Error, _>(|| {
+            diesel::insert_into(dsl::users_subscriptions)
+                .values(&new_subscription)
+                .execute(&self.0)?;
+
+            dsl::users_subscriptions
+                .order(dsl::id.desc())
+                .first::<Subscription>(&self.0)
+        })
     }
 
     pub fn update_last_sent(&self, id: i32) -> Result<(), Error> {

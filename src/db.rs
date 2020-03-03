@@ -10,7 +10,7 @@ pub struct DbClient(SqliteConnection);
 
 impl DbClient {
     pub fn new(url: &str) -> DbClient {
-        let conn = SqliteConnection::establish(url).expect("Error connecting to {}");
+        let conn = SqliteConnection::establish(url).expect(&format!("Error connecting to {}", url));
         conn.execute("PRAGMA foreign_keys = ON")
             .expect("Failed to enable foreign key support");
         DbClient(conn)

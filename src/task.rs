@@ -9,7 +9,7 @@ use tokio::runtime::Runtime;
 
 use crate::db::DbClient;
 use crate::models::Subscription;
-use crate::reddit::RedditClient;
+use crate::reddit::client::RedditClient;
 
 pub fn init_task(token: &str, database_url: &str) {
     let api = Api::new(&token);

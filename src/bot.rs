@@ -6,7 +6,7 @@ use telegram_bot::prelude::*;
 use telegram_bot::{Api, Message, MessageKind, UpdateKind};
 
 use crate::db::DbClient;
-use crate::reddit::RedditClient;
+use crate::reddit::client::RedditClient;
 use crate::task::process_subreddit;
 
 const HELP_TEXT: &str = r#"

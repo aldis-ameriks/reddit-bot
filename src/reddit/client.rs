@@ -1,35 +1,8 @@
 use log::warn;
 use serde_json::Value;
-use std::fmt;
 
-#[derive(Debug)]
-pub struct RedditPost {
-    pub title: String,
-    pub link: String,
-}
-
-impl fmt::Display for RedditPost {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}\n{}\n", self.title, self.link)
-    }
-}
-
-pub enum RedditError {
-    NetworkError(reqwest::Error),
-    MalformedResponse(serde_json::error::Error),
-}
-
-impl From<reqwest::Error> for RedditError {
-    fn from(error: reqwest::Error) -> Self {
-        RedditError::NetworkError(error)
-    }
-}
-
-impl From<serde_json::error::Error> for RedditError {
-    fn from(error: serde_json::error::Error) -> Self {
-        RedditError::MalformedResponse(error)
-    }
-}
+use super::error::RedditError;
+use super::post::RedditPost;
 
 pub struct RedditClient {
     base_url: String,

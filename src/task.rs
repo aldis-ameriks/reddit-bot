@@ -9,19 +9,21 @@ use tokio::runtime::Runtime;
 
 use crate::db::DbClient;
 use crate::models::Subscription;
-use crate::reddit::fetch_posts;
+use crate::reddit::RedditClient;
 
 pub fn init_task(token: &str, database_url: &str) {
     let api = Api::new(&token);
     let db = DbClient::new(&database_url);
+    let reddit_client = RedditClient::new();
+
     thread::spawn(move || {
         let mut rt = Runtime::new().unwrap();
 
-        rt.block_on(async { run_task(&api, &db).await });
+        rt.block_on(async { run_task(&api, &db, &reddit_client).await });
     });
 }
 
-async fn run_task(api: &Api, db: &DbClient) {
+async fn run_task(api: &Api, db: &DbClient, reddit_client: &RedditClient) {
     loop {
         let now = Utc::now();
         // TODO: allow configuring per user and/or per user subscription
@@ -40,21 +42,29 @@ async fn run_task(api: &Api, db: &DbClient) {
                         }
                     }
                 }
-                process_subreddit(&db, &api, &user_subscription).await;
+                process_subreddit(&db, &api, &reddit_client, &user_subscription).await;
             }
         }
         thread::sleep(Duration::from_secs(10));
     }
 }
 
-pub async fn process_subreddit(db: &DbClient, api: &Api, user_subscription: &Subscription) {
-    if let Ok(posts) = fetch_posts(&user_subscription.subreddit).await {
+pub async fn process_subreddit(
+    db: &DbClient,
+    api: &Api,
+    reddit_client: &RedditClient,
+    user_subscription: &Subscription,
+) {
+    if let Ok(posts) = reddit_client
+        .fetch_posts(&user_subscription.subreddit)
+        .await
+    {
         let mut message = format!(
             "Weekly popular posts from: \"{}\"\n\n",
             &user_subscription.subreddit
         );
         for post in posts.iter() {
-            message.push_str(&post.format())
+            message.push_str(format!("{}", post).as_str());
         }
 
         if let Ok(_) = api

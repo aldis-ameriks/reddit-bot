@@ -6,7 +6,7 @@ use telegram_bot::prelude::*;
 use telegram_bot::{Api, Message, MessageKind, UpdateKind};
 
 use crate::db::DbClient;
-use crate::reddit::validate_subreddit;
+use crate::reddit::RedditClient;
 use crate::task::process_subreddit;
 
 const HELP_TEXT: &str = r#"
@@ -22,6 +22,7 @@ These are the commands I know
 pub async fn init_bot(token: &str, database_url: &str) -> Result<(), Box<dyn Error>> {
     let db = DbClient::new(&database_url);
     let api = Api::new(&token);
+    let reddit_client = RedditClient::new();
 
     let mut stream = api.stream();
     while let Some(update) = stream.next().await {
@@ -40,7 +41,7 @@ pub async fn init_bot(token: &str, database_url: &str) -> Result<(), Box<dyn Err
                 match command.as_ref() {
                     "/start" => start(&api, &message, &db).await?,
                     "/stop" => stop(&api, &message, &db).await?,
-                    "/subscribe" => subscribe(&api, &message, payload, &db).await?,
+                    "/subscribe" => subscribe(&api, &reddit_client, &message, payload, &db).await?,
                     "/unsubscribe" => unsubscribe(&api, &message, payload, &db).await?,
                     "/subscriptions" => subscriptions(&api, &message, &db).await?,
                     "/help" => help(&api, &message).await?,
@@ -79,6 +80,7 @@ async fn stop(
 
 async fn subscribe(
     api: &Api,
+    reddit_client: &RedditClient,
     message: &Message,
     payload: Option<&str>,
     db: &DbClient,
@@ -90,7 +92,7 @@ async fn subscribe(
 
     let payload = payload.unwrap();
 
-    if !validate_subreddit(&payload).await {
+    if !reddit_client.validate_subreddit(&payload).await {
         api.send(message.from.text("Invalid subreddit")).await?;
         return Ok(());
     }
@@ -98,7 +100,7 @@ async fn subscribe(
     if let Ok(subscription) = db.subscribe(&message.from.id.to_string(), &payload) {
         api.send(message.from.text(format!("Subscribed to: {}", &payload)))
             .await?;
-        process_subreddit(&db, &api, &subscription).await;
+        process_subreddit(&db, &api, &reddit_client, &subscription).await;
     }
 
     Ok(())

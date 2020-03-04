@@ -5,8 +5,8 @@ use log::info;
 use telegram_bot::prelude::*;
 use telegram_bot::{Api, Message, MessageKind, UpdateKind};
 
-use crate::db::DbClient;
-use crate::reddit::client::RedditClient;
+use crate::db::Client as DbClient;
+use crate::reddit::client::Client as RedditClient;
 use crate::task::process_subreddit;
 
 const HELP_TEXT: &str = r#"

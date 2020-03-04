@@ -6,14 +6,14 @@ use crate::models::{NewSubscription, Subscription, User};
 use crate::schema;
 use chrono::Utc;
 
-pub struct DbClient(SqliteConnection);
+pub struct Client(SqliteConnection);
 
-impl DbClient {
-    pub fn new(url: &str) -> DbClient {
+impl Client {
+    pub fn new(url: &str) -> Client {
         let conn = SqliteConnection::establish(url).expect(&format!("Error connecting to {}", url));
         conn.execute("PRAGMA foreign_keys = ON")
             .expect("Failed to enable foreign key support");
-        DbClient(conn)
+        Client(conn)
     }
 
     pub fn create_user(&self, id: &str) -> Result<User, Error> {

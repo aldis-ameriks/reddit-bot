@@ -7,8 +7,8 @@ use log::{error, info};
 use telegram_bot::{Api, ChatId, ChatRef, SendMessage};
 use tokio::runtime::Runtime;
 
-use crate::db::Client as DbClient;
-use crate::models::Subscription;
+use crate::db::client::Client as DbClient;
+use crate::db::models::Subscription;
 use crate::reddit::client::Client as RedditClient;
 
 pub fn init_task(token: &str, database_url: &str) {

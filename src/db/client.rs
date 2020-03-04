@@ -1,11 +1,10 @@
+use chrono::Utc;
 use diesel::prelude::*;
 use diesel::result::Error;
 use log::{error, info};
 
-use crate::models::{NewSubscription, Subscription, User};
-use crate::schema;
-use chrono::Utc;
-
+use super::models::{NewSubscription, Subscription, User};
+use super::schema;
 pub struct Client(SqliteConnection);
 
 impl Client {
@@ -17,7 +16,7 @@ impl Client {
     }
 
     pub fn create_user(&self, id: &str) -> Result<User, Error> {
-        use crate::schema::users;
+        use schema::users;
         let curr = chrono::Utc::now();
 
         let new_user = User {

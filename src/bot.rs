@@ -6,8 +6,8 @@ use telegram_bot::prelude::*;
 use telegram_bot::{Api, Message, MessageKind, UpdateKind};
 
 use crate::db::client::Client as DbClient;
+use crate::process_subscription;
 use crate::reddit::client::Client as RedditClient;
-use crate::task::process_subreddit;
 
 const HELP_TEXT: &str = r#"
 These are the commands I know
@@ -100,7 +100,7 @@ async fn subscribe(
     if let Ok(subscription) = db.subscribe(&message.from.id.to_string(), &payload) {
         api.send(message.from.text(format!("Subscribed to: {}", &payload)))
             .await?;
-        process_subreddit(&db, &api, &reddit_client, &subscription).await;
+        process_subscription(&db, &api, &reddit_client, &subscription).await;
     }
 
     Ok(())

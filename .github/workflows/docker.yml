@@ -9,7 +9,7 @@ env:
   IMAGE_NAME: reddit-bot
 
 jobs:
-  push:
+  build-push:
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
 

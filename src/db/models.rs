@@ -8,7 +8,7 @@ pub struct User {
     pub created_at: String,
 }
 
-#[derive(Queryable)]
+#[derive(Debug, Queryable)]
 pub struct Subscription {
     pub id: i32,
     pub user_id: String,

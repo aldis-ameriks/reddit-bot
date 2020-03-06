@@ -142,3 +142,123 @@ impl Client {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use diesel_migrations::run_pending_migrations;
+    use serial_test::serial;
+
+    const USER_ID: &str = "1";
+
+    pub fn setup() -> Client {
+        std::fs::create_dir(".tmp").err();
+        std::fs::remove_file(".tmp/test.db").err();
+        let client = Client::new("file:.tmp/test.db");
+        run_pending_migrations(&client.0).unwrap();
+        client
+    }
+
+    #[test]
+    #[serial]
+    fn users() {
+        let client = setup();
+        let result = client.get_users().unwrap();
+        assert_eq!(result.len(), 0);
+
+        client.create_user(USER_ID).unwrap();
+        let result = client.get_users().unwrap();
+        assert_eq!(result.len(), 1);
+
+        let result = client.create_user(USER_ID).unwrap_err();
+        let result = format!("{}", result);
+        assert!(result.contains("UNIQUE constraint failed: users.id"));
+
+        client.delete_user(USER_ID).unwrap();
+        let result = client.get_users().unwrap();
+        assert_eq!(result.len(), 0);
+    }
+
+    #[test]
+    #[serial]
+    fn user_subscriptions() {
+        let client = setup();
+        client.create_user(USER_ID).unwrap();
+
+        let result = client.get_user_subscriptions(USER_ID).unwrap();
+        assert_eq!(result.len(), 0);
+
+        client.subscribe(USER_ID, "rust").unwrap();
+
+        let result = client.get_user_subscriptions(USER_ID).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].subreddit, "rust");
+
+        let result = client.subscribe(USER_ID, "rust").unwrap_err();
+        let result = format!("{}", result);
+        assert!(result.contains(
+            "UNIQUE constraint failed: users_subscriptions.user_id, users_subscriptions.subreddit"
+        ));
+
+        client.subscribe(USER_ID, "Whatcouldgowrong").unwrap();
+        let result = client.get_user_subscriptions(USER_ID).unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].subreddit, "Whatcouldgowrong");
+        assert_eq!(result[1].subreddit, "rust");
+
+        client.unsubscribe(USER_ID, "rust").unwrap();
+        let result = client.get_user_subscriptions(USER_ID).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].subreddit, "Whatcouldgowrong");
+
+        client.delete_user(USER_ID).unwrap();
+        let result = client.get_user_subscriptions(USER_ID).unwrap();
+        assert_eq!(result.len(), 0);
+    }
+
+    #[test]
+    #[serial]
+    fn subscriptions() {
+        const SECOND_USER_ID: &str = "2";
+
+        let client = setup();
+        client.create_user(USER_ID).unwrap();
+        client.create_user(SECOND_USER_ID).unwrap();
+
+        let result = client.get_user_subscriptions(USER_ID).unwrap();
+        assert_eq!(result.len(), 0);
+
+        let result = client.get_user_subscriptions(SECOND_USER_ID).unwrap();
+        assert_eq!(result.len(), 0);
+
+        client.subscribe(USER_ID, "rust").unwrap();
+
+        let result = client.get_user_subscriptions(SECOND_USER_ID).unwrap();
+        assert_eq!(result.len(), 0);
+
+        let result = client.get_subscriptions().unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].subreddit, "rust");
+    }
+
+    #[test]
+    #[serial]
+    fn update_last_sent() {
+        let client = setup();
+        client.create_user(USER_ID).unwrap();
+
+        let result = client.get_user_subscriptions(USER_ID).unwrap();
+        assert_eq!(result.len(), 0);
+
+        client.subscribe(USER_ID, "rust").unwrap();
+
+        let result = client.get_subscriptions().unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].subreddit, "rust");
+        assert_eq!(result[0].last_sent_at, None);
+
+        client.update_last_sent(result[0].id).unwrap();
+        let result = client.get_subscriptions().unwrap();
+        assert!(result[0].last_sent_at.is_some());
+    }
+}

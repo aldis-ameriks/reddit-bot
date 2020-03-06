@@ -3,3 +3,4 @@
 .idea
 .env
 test.db
+.tmp

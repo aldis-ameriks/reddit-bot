@@ -1,17 +1,22 @@
-name: Build Docker Image
+name: Docker
 
-on:
-  push:
-    branches:
-      - master
+on: [push]
 
 env:
   IMAGE_NAME: reddit-bot
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run tests
+        run: cargo test --verbose
+
   build-push:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    needs: test
+    if: github.ref == 'refs/heads/master'
 
     steps:
       - uses: actions/checkout@v2

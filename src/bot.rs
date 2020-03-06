@@ -112,13 +112,20 @@ async fn unsubscribe(
     payload: Option<&str>,
     db: &DbClient,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if let Some(value) = payload {
-        if let Ok(_) = db.unsubscribe(&message.from.id.to_string(), &value) {
-            api.send(message.from.text(format!("Unsubscribed from: {}", &value)))
-                .await?;
-        }
-    } else {
+    if let None = payload {
         api.send(message.from.text("Missing subreddit")).await?;
+        return Ok(());
+    }
+
+    let payload = payload.unwrap();
+
+    if let Ok(_) = db.unsubscribe(&message.from.id.to_string(), &payload) {
+        api.send(
+            message
+                .from
+                .text(format!("Unsubscribed from: {}", &payload)),
+        )
+        .await?;
     }
 
     Ok(())

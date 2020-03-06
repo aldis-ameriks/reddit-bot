@@ -68,7 +68,7 @@ impl Client {
 
         let new_subscription = NewSubscription { user_id, subreddit };
 
-        self.0.transaction::<_, Error, _>(|| {
+        match self.0.transaction::<_, Error, _>(|| {
             diesel::insert_into(dsl::users_subscriptions)
                 .values(&new_subscription)
                 .execute(&self.0)?;
@@ -76,7 +76,13 @@ impl Client {
             dsl::users_subscriptions
                 .order(dsl::id.desc())
                 .first::<Subscription>(&self.0)
-        })
+        }) {
+            Ok(subscription) => Ok(subscription),
+            Err(err) => {
+                error!("failed to subscribe: {}", err);
+                Err(err)
+            }
+        }
     }
 
     pub fn update_last_sent(&self, id: i32) -> Result<(), Error> {
@@ -111,7 +117,7 @@ impl Client {
         {
             Ok(_) => Ok(()),
             Err(err) => {
-                error!("failed unsubscribe: {}", err);
+                error!("failed to unsubscribe: {}", err);
                 Err(err)
             }
         }

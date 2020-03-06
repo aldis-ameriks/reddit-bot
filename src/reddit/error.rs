@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub enum Error {
     NetworkError(reqwest::Error),
     MalformedResponse(serde_json::error::Error),

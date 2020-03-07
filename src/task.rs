@@ -24,6 +24,7 @@ pub fn init_task(token: &str, database_url: &str) {
                 let now = Utc::now();
                 // TODO: allow configuring per user and/or per user subscription
                 if now.weekday() != Weekday::Sun || now.hour() < 12 {
+                    thread::sleep(Duration::from_secs(10));
                     continue;
                 }
 

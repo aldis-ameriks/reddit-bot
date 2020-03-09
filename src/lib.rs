@@ -28,7 +28,7 @@ pub async fn process_subscription(
             &user_subscription.subreddit
         );
         for post in posts.iter() {
-            message.push_str(format!("{}", post).as_str());
+            message.push_str(format!("{}\n", post).as_str());
         }
 
         if let Ok(_) = api

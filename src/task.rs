@@ -3,7 +3,6 @@ use std::time::Duration;
 
 use chrono::prelude::*;
 use chrono::{Datelike, Utc, Weekday};
-use log::info;
 use telegram_bot::Api;
 use tokio::runtime::Runtime;
 
@@ -27,8 +26,6 @@ pub fn init_task(token: &str, database_url: &str) {
                     thread::sleep(Duration::from_secs(10));
                     continue;
                 }
-
-                info!("processing user subscriptions");
 
                 if let Ok(user_subscriptions) = db.get_subscriptions() {
                     for user_subscription in user_subscriptions {

@@ -1,6 +1,6 @@
 use crate::db::client::Client as DbClient;
-use crate::process_subscription;
 use crate::reddit::client::Client as RedditClient;
+use crate::task::task::process_subscription;
 use telegram_bot::prelude::*;
 use telegram_bot::{Api, InlineKeyboardButton, InlineKeyboardMarkup, ReplyMarkup, User};
 

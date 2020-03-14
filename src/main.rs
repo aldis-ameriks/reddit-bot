@@ -4,7 +4,7 @@ use log::Level;
 
 use dotenv::dotenv;
 use reddit_bot::bot::bot::init_bot;
-use reddit_bot::task::init_task;
+use reddit_bot::task::task::init_task;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

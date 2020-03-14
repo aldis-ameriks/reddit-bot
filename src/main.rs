@@ -14,7 +14,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
     init_task(&token, &database_url);
-    init_bot(&token, &database_url).await?;
+    init_bot(&token, &database_url).await;
 
     Ok(())
 }

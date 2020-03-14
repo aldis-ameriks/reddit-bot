@@ -5,6 +5,8 @@ use log::{error, info};
 
 use super::models::{NewSubscription, Subscription, User};
 use super::schema;
+use crate::db::models::Command;
+
 pub struct Client(SqliteConnection);
 
 impl Client {
@@ -147,6 +149,42 @@ impl Client {
             }
         }
     }
+
+    pub fn get_users_last_command(&self, user_id: &str) -> Result<Option<Command>, Error> {
+        use schema::commands::dsl;
+        match dsl::commands
+            .filter(dsl::user_id.eq(user_id))
+            .load::<Command>(&self.0)
+        {
+            Ok(result) => {
+                if let Some(result) = result.get(0) {
+                    Ok(Some((*result).clone()))
+                } else {
+                    Ok(None)
+                }
+            }
+            Err(err) => {
+                error!("failed to get users last command: {}", err);
+                Err(err)
+            }
+        }
+    }
+
+    pub fn insert_or_update_last_command(&self, command: &Command) -> Result<(), Error> {
+        use schema::commands::dsl;
+        info!("inserting or updating last command: {:?}", command);
+
+        match diesel::replace_into(dsl::commands)
+            .values(vec![command])
+            .execute(&self.0)
+        {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                error!("failed to insert or update last command: {}", err);
+                Err(err)
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -266,5 +304,37 @@ mod test {
         client.update_last_sent(result[0].id).unwrap();
         let result = client.get_subscriptions().unwrap();
         assert!(result[0].last_sent_at.is_some());
+    }
+
+    #[test]
+    #[serial]
+    fn commands() {
+        let client = setup();
+        client.create_user(USER_ID).unwrap();
+
+        let result = client.get_users_last_command(USER_ID).unwrap();
+        assert!(result.is_none());
+
+        let command = Command {
+            user_id: USER_ID.to_string(),
+            command: "/subscribe".to_string(),
+            created_at: "123".to_string(),
+            updated_at: "456".to_string(),
+            current_step: "2".to_string(),
+            data: None,
+        };
+
+        client.insert_or_update_last_command(&command).unwrap();
+        let result = client.get_users_last_command(USER_ID).unwrap().unwrap();
+        assert_eq!(result, command);
+
+        let command2 = Command {
+            data: Some("data".to_string()),
+            current_step: "3".to_string(),
+            ..command
+        };
+        client.insert_or_update_last_command(&command2).unwrap();
+        let result = client.get_users_last_command(USER_ID).unwrap().unwrap();
+        assert_eq!(result, command2);
     }
 }

@@ -1,3 +1,4 @@
+use super::schema::commands;
 use super::schema::users;
 use super::schema::users_subscriptions;
 
@@ -21,4 +22,15 @@ pub struct Subscription {
 pub struct NewSubscription<'a> {
     pub user_id: &'a str,
     pub subreddit: &'a str,
+}
+
+#[derive(Debug, Queryable, Insertable, Clone, PartialEq)]
+#[table_name = "commands"]
+pub struct Command {
+    pub user_id: String,
+    pub command: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub current_step: String,
+    pub data: Option<String>,
 }

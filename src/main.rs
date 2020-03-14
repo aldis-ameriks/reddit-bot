@@ -3,7 +3,7 @@ use std::env;
 use log::Level;
 
 use dotenv::dotenv;
-use reddit_bot::bot::init_bot;
+use reddit_bot::bot::bot::init_bot;
 use reddit_bot::task::init_task;
 
 #[tokio::main]

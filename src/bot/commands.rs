@@ -1,16 +1,8 @@
-use std::error::Error;
-
-use futures::StreamExt;
-use log::{error, info, warn};
-use telegram_bot::prelude::*;
-use telegram_bot::{
-    Api, ForceReply, InlineKeyboardButton, InlineKeyboardButtonKind, InlineKeyboardMarkup,
-    KeyboardButton, Message, MessageKind, ReplyKeyboardMarkup, ReplyMarkup, UpdateKind, User,
-};
-
 use crate::db::client::Client as DbClient;
 use crate::process_subscription;
 use crate::reddit::client::Client as RedditClient;
+use telegram_bot::prelude::*;
+use telegram_bot::{Api, InlineKeyboardButton, InlineKeyboardMarkup, ReplyMarkup, User};
 
 const HELP_TEXT: &str = r#"
 These are the commands I know
@@ -22,78 +14,18 @@ These are the commands I know
 /help
 "#;
 
-pub async fn init_bot(token: &str, database_url: &str) {
-    let db = DbClient::new(&database_url);
-    let api = Api::new(&token);
-    let reddit_client = RedditClient::new();
-
-    let handle_stuff =
-        |data: String, from: User| handle_message(data, from, &api, &db, &reddit_client);
-
-    let mut stream = api.stream();
-    while let Some(update) = stream.next().await {
-        if let Ok(update) = update {
-            match update.kind {
-                UpdateKind::Message(message) => {
-                    if let MessageKind::Text { data, .. } = message.kind {
-                        if let Err(e) = handle_stuff(data, message.from).await {
-                            error!("error handling message: {}", e);
-                        }
-                    }
-                }
-                UpdateKind::CallbackQuery(query) => {
-                    if let Some(data) = query.data {
-                        if let Err(e) = handle_stuff(data, query.from).await {
-                            error!("error handling message in callback query: {}", e);
-                        }
-                    } else {
-                        warn!("empty message in callback query");
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-}
-
-async fn handle_message(
-    data: String,
-    from: User,
+pub async fn start(
     api: &Api,
     db: &DbClient,
-    reddit_client: &RedditClient,
-) -> Result<(), Box<dyn Error>> {
-    info!(
-        "received message from: {}({}), message: {}",
-        &from.first_name, &from.id, data
-    );
-
-    let data = data.split(" ").collect::<Vec<&str>>();
-    let command = data.get(0).unwrap_or(&"unknown");
-    let payload = data.get(1).cloned();
-
-    match command.as_ref() {
-        "/start" => start(&api, &db, &from).await?,
-        "/stop" => stop(&api, &db, &from).await?,
-        "/subscribe" => subscribe(&api, &db, &reddit_client, &from, payload).await?,
-        "/unsubscribe" => unsubscribe(&api, &db, &from, payload).await?,
-        "/subscriptions" => subscriptions(&api, &db, &from).await?,
-        "/help" => help(&api, &from).await?,
-        _ => {
-            api.send(from.text("Say what?")).await?;
-        }
-    }
-    Ok(())
-}
-
-async fn start(api: &Api, db: &DbClient, from: &User) -> Result<(), Box<dyn std::error::Error>> {
+    from: &User,
+) -> Result<(), Box<dyn std::error::Error>> {
     if let Ok(_) = db.create_user(&from.id.to_string()) {
         api.send(from.text(HELP_TEXT)).await?;
     }
     Ok(())
 }
 
-async fn stop(api: &Api, db: &DbClient, from: &User) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn stop(api: &Api, db: &DbClient, from: &User) -> Result<(), Box<dyn std::error::Error>> {
     if let Ok(_) = db.delete_user(&from.id.to_string()) {
         api.send(from.text("User and subscriptions deleted"))
             .await?;
@@ -101,7 +33,7 @@ async fn stop(api: &Api, db: &DbClient, from: &User) -> Result<(), Box<dyn std::
     Ok(())
 }
 
-async fn subscribe(
+pub async fn subscribe(
     api: &Api,
     db: &DbClient,
     reddit_client: &RedditClient,
@@ -129,7 +61,7 @@ async fn subscribe(
     Ok(())
 }
 
-async fn unsubscribe(
+pub async fn unsubscribe(
     api: &Api,
     db: &DbClient,
     from: &User,
@@ -181,7 +113,7 @@ async fn unsubscribe(
     Ok(())
 }
 
-async fn subscriptions(
+pub async fn subscriptions(
     api: &Api,
     db: &DbClient,
     from: &User,
@@ -202,7 +134,7 @@ async fn subscriptions(
     Ok(())
 }
 
-async fn help(api: &Api, from: &User) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn help(api: &Api, from: &User) -> Result<(), Box<dyn std::error::Error>> {
     api.send(from.text(HELP_TEXT)).await?;
     Ok(())
 }

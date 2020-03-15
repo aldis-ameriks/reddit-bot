@@ -71,8 +71,6 @@ async fn handle_message(
                     match last_command.command.as_str() {
                         // TODO: encapsulate step logic inside dialog struct
                         "/subscribe" => {
-                            if last_command.step == 0 {}
-
                             match last_command.step {
                                 0 => {
                                     // TODO: validate subreddit

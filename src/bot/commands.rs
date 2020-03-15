@@ -10,11 +10,11 @@ use crate::reddit::client::Client as RedditClient;
 use crate::task::task::process_subscription;
 
 const HELP_TEXT: &str = r#"
-These are the commands I know
+You can send me these commands:
 /start
 /stop
-/subscribe <subreddit>
-/unsubscribe <subreddit>
+/subscribe
+/unsubscribe
 /subscriptions
 /help
 "#;

@@ -55,25 +55,34 @@ async fn handle_message(
         &from.first_name, &from.id, data
     );
 
-    let data = data.split(" ").collect::<Vec<&str>>();
-    let command = data.get(0).unwrap_or(&"unknown");
-    let payload = data.get(1).cloned();
-
-    match command.as_ref() {
+    match data.as_ref() {
         "/start" => start(&api, &db, &from).await?,
         "/stop" => stop(&api, &db, &from).await?,
-        "/subscribe" => subscribe(&api, &db, &reddit_client, &from, payload).await?,
-        "/unsubscribe" => unsubscribe(&api, &db, &from, payload).await?,
+        "/subscribe" => subscribe(&api, &db, &reddit_client, &from, None).await?,
+        "/unsubscribe" => unsubscribe(&api, &db, &from, None).await?,
         "/subscriptions" => subscriptions(&api, &db, &from).await?,
         "/help" => help(&api, &from).await?,
         _ => {
             if let Ok(last_command) = db.get_users_last_command(&from.id.to_string()) {
                 if let Some(mut last_command) = last_command {
-                    if last_command.command == "/subscribe" && last_command.step == 0 {
-                        subscribe(&api, &db, &reddit_client, &from, Some(command)).await?;
-                        last_command.step += 1;
-                        db.insert_or_update_last_command(&last_command).ok();
-                        return Ok(());
+                    match last_command.command.as_str() {
+                        "/subscribe" => {
+                            if last_command.step == 0 {
+                                subscribe(&api, &db, &reddit_client, &from, Some(&data)).await?;
+                                last_command.step += 1;
+                                db.insert_or_update_last_command(&last_command).ok();
+                                return Ok(());
+                            }
+                        }
+                        "/unsubscribe" => {
+                            if last_command.step == 0 {
+                                unsubscribe(&api, &db, &from, Some(&data)).await?;
+                                last_command.step += 1;
+                                db.insert_or_update_last_command(&last_command).ok();
+                                return Ok(());
+                            }
+                        }
+                        _ => {}
                     }
                 }
             }

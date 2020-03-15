@@ -99,7 +99,7 @@ pub async fn unsubscribe(
                 .map(|subscription| {
                     InlineKeyboardButton::callback(
                         subscription.subreddit.to_string(),
-                        format!("/unsubscribe {}", subscription.subreddit),
+                        subscription.subreddit.to_string(),
                     )
                 })
                 .collect::<Vec<InlineKeyboardButton>>();
@@ -124,12 +124,18 @@ pub async fn unsubscribe(
                     .reply_markup(ReplyMarkup::InlineKeyboardMarkup(markup)),
             )
             .await?;
+
+            let command = Command {
+                user_id: from.id.to_string(),
+                command: "/unsubscribe".to_string(),
+                step: 0,
+            };
+            db.insert_or_update_last_command(&command).ok();
         }
         return Ok(());
     }
 
     let data = data.unwrap();
-
     if let Ok(_) = db.unsubscribe(&from.id.to_string(), &data) {
         api.send(from.text(format!("Unsubscribed from: {}", &data)))
             .await?;

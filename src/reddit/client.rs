@@ -15,6 +15,7 @@ impl Client {
         }
     }
 
+    #[allow(dead_code)]
     pub fn new_with(base_url: &str) -> Self {
         Client {
             base_url: base_url.to_string(),

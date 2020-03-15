@@ -28,8 +28,4 @@ table! {
 joinable!(commands -> users (user_id));
 joinable!(users_subscriptions -> users (user_id));
 
-allow_tables_to_appear_in_same_query!(
-    commands,
-    users,
-    users_subscriptions,
-);
+allow_tables_to_appear_in_same_query!(commands, users, users_subscriptions,);

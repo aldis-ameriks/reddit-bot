@@ -1,3 +1,5 @@
+embed_migrations!();
+
 use chrono::Utc;
 use diesel::prelude::*;
 use diesel::result::Error;
@@ -14,6 +16,9 @@ impl Client {
         let conn = SqliteConnection::establish(url).expect(&format!("Error connecting to {}", url));
         conn.execute("PRAGMA foreign_keys = ON")
             .expect("Failed to enable foreign key support");
+
+        // TODO: run migration on applications startup
+        embedded_migrations::run(&conn).unwrap();
         Client(conn)
     }
 

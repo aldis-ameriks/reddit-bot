@@ -1,8 +1,13 @@
-use crate::db::client::Client as DbClient;
-use crate::reddit::client::Client as RedditClient;
-use crate::task::task::process_subscription;
+use diesel::result::DatabaseErrorKind;
+use diesel::result::Error::DatabaseError;
+use log::error;
 use telegram_bot::prelude::*;
 use telegram_bot::{Api, InlineKeyboardButton, InlineKeyboardMarkup, ReplyMarkup, User};
+
+use crate::db::client::Client as DbClient;
+use crate::db::models::Command;
+use crate::reddit::client::Client as RedditClient;
+use crate::task::task::process_subscription;
 
 const HELP_TEXT: &str = r#"
 These are the commands I know
@@ -41,7 +46,17 @@ pub async fn subscribe(
     payload: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if let None = payload {
-        api.send(from.text("Missing subreddit")).await?;
+        api.send(from.text("Type the name of subreddit you want to subscribe to."))
+            .await?;
+
+        let command = Command {
+            user_id: from.id.to_string(),
+            command: "/subscribe".to_string(),
+            step: 0,
+        };
+
+        db.insert_or_update_last_command(&command).ok();
+
         return Ok(());
     }
 
@@ -52,12 +67,22 @@ pub async fn subscribe(
         return Ok(());
     }
 
-    if let Ok(subscription) = db.subscribe(&from.id.to_string(), &data) {
-        api.send(from.text(format!("Subscribed to: {}", &data)))
-            .await?;
-        process_subscription(&db, &api, &reddit_client, &subscription).await;
+    match db.subscribe(&from.id.to_string(), &data) {
+        Ok(subscription) => {
+            api.send(from.text(format!("Subscribed to: {}", &data)))
+                .await?;
+            process_subscription(&db, &api, &reddit_client, &subscription).await;
+        }
+        Err(err) => {
+            error!("err: {}", err);
+            if let DatabaseError(DatabaseErrorKind::UniqueViolation, _) = err {
+                api.send(from.text(format!("Already subscribed to {}", &data)))
+                    .await?;
+            } else {
+                api.send(from.text("Something went wrong")).await?;
+            }
+        }
     }
-
     Ok(())
 }
 

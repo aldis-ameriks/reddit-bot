@@ -29,8 +29,5 @@ pub struct NewSubscription<'a> {
 pub struct Command {
     pub user_id: String,
     pub command: String,
-    pub created_at: String,
-    pub updated_at: String,
-    pub current_step: String,
-    pub data: Option<String>,
+    pub step: i32,
 }

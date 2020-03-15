@@ -67,6 +67,16 @@ async fn handle_message(
         "/subscriptions" => subscriptions(&api, &db, &from).await?,
         "/help" => help(&api, &from).await?,
         _ => {
+            if let Ok(last_command) = db.get_users_last_command(&from.id.to_string()) {
+                if let Some(mut last_command) = last_command {
+                    if last_command.command == "/subscribe" && last_command.step == 0 {
+                        subscribe(&api, &db, &reddit_client, &from, Some(command)).await?;
+                        last_command.step += 1;
+                        db.insert_or_update_last_command(&last_command).ok();
+                        return Ok(());
+                    }
+                }
+            }
             api.send(from.text("Say what?")).await?;
         }
     }

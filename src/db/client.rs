@@ -323,21 +323,14 @@ mod test {
         let command = Command {
             user_id: USER_ID.to_string(),
             command: "/subscribe".to_string(),
-            created_at: "123".to_string(),
-            updated_at: "456".to_string(),
-            current_step: "2".to_string(),
-            data: None,
+            step: 2,
         };
 
         client.insert_or_update_last_command(&command).unwrap();
         let result = client.get_users_last_command(USER_ID).unwrap().unwrap();
         assert_eq!(result, command);
 
-        let command2 = Command {
-            data: Some("data".to_string()),
-            current_step: "3".to_string(),
-            ..command
-        };
+        let command2 = Command { step: 3, ..command };
         client.insert_or_update_last_command(&command2).unwrap();
         let result = client.get_users_last_command(USER_ID).unwrap().unwrap();
         assert_eq!(result, command2);

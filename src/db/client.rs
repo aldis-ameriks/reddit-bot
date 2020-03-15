@@ -1,13 +1,14 @@
-embed_migrations!();
-
 use chrono::Utc;
 use diesel::prelude::*;
 use diesel::result::Error;
 use log::{error, info};
 
+use crate::db::models::Command;
+
 use super::models::{NewSubscription, Subscription, User};
 use super::schema;
-use crate::db::models::Command;
+
+embed_migrations!();
 
 pub struct Client(SqliteConnection);
 
@@ -68,12 +69,24 @@ impl Client {
         }
     }
 
-    pub fn subscribe(&self, user_id: &str, subreddit: &str) -> Result<Subscription, Error> {
+    pub fn subscribe(
+        &self,
+        user_id: &str,
+        subreddit: &str,
+        send_on: i32,
+        send_at: i32,
+    ) -> Result<Subscription, Error> {
         use schema::users_subscriptions::dsl;
 
         info!("subscribing user_id: {}, subreddit: {}", user_id, subreddit);
 
-        let new_subscription = NewSubscription { user_id, subreddit };
+        let new_subscription = NewSubscription {
+            user_id,
+            subreddit,
+            send_on,
+            send_at,
+            last_sent_at: Some(Utc::now().to_rfc3339()),
+        };
 
         match self.0.transaction::<_, Error, _>(|| {
             diesel::insert_into(dsl::users_subscriptions)
@@ -194,9 +207,10 @@ impl Client {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use diesel_migrations::run_pending_migrations;
     use serial_test::serial;
+
+    use super::*;
 
     const USER_ID: &str = "1";
 
@@ -237,19 +251,21 @@ mod test {
         let result = client.get_user_subscriptions(USER_ID).unwrap();
         assert_eq!(result.len(), 0);
 
-        client.subscribe(USER_ID, "rust").unwrap();
+        client.subscribe(USER_ID, "rust", 0, 12).unwrap();
 
         let result = client.get_user_subscriptions(USER_ID).unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].subreddit, "rust");
 
-        let result = client.subscribe(USER_ID, "rust").unwrap_err();
+        let result = client.subscribe(USER_ID, "rust", 0, 12).unwrap_err();
         let result = format!("{}", result);
         assert!(result.contains(
             "UNIQUE constraint failed: users_subscriptions.user_id, users_subscriptions.subreddit"
         ));
 
-        client.subscribe(USER_ID, "Whatcouldgowrong").unwrap();
+        client
+            .subscribe(USER_ID, "Whatcouldgowrong", 0, 12)
+            .unwrap();
         let result = client.get_user_subscriptions(USER_ID).unwrap();
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].subreddit, "Whatcouldgowrong");
@@ -280,7 +296,7 @@ mod test {
         let result = client.get_user_subscriptions(SECOND_USER_ID).unwrap();
         assert_eq!(result.len(), 0);
 
-        client.subscribe(USER_ID, "rust").unwrap();
+        client.subscribe(USER_ID, "rust", 0, 12).unwrap();
 
         let result = client.get_user_subscriptions(SECOND_USER_ID).unwrap();
         assert_eq!(result.len(), 0);
@@ -299,12 +315,13 @@ mod test {
         let result = client.get_user_subscriptions(USER_ID).unwrap();
         assert_eq!(result.len(), 0);
 
-        client.subscribe(USER_ID, "rust").unwrap();
+        client.subscribe(USER_ID, "rust", 0, 12).unwrap();
 
         let result = client.get_subscriptions().unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].subreddit, "rust");
-        assert_eq!(result[0].last_sent_at, None);
+        assert_eq!(result[0].send_on, 0);
+        assert_eq!(result[0].send_at, 12);
 
         client.update_last_sent(result[0].id).unwrap();
         let result = client.get_subscriptions().unwrap();
@@ -324,6 +341,7 @@ mod test {
             user_id: USER_ID.to_string(),
             command: "/subscribe".to_string(),
             step: 2,
+            data: "".to_string(),
         };
 
         client.insert_or_update_last_command(&command).unwrap();

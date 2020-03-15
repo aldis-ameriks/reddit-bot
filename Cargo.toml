@@ -17,6 +17,7 @@ diesel = { version = "1.4.0", features = ["sqlite"] }
 diesel_migrations = "1.4.0"
 dotenv = "0.10"
 chrono = "0.4"
+num = "0.2.1"
 telegram-bot = { git = 'https://github.com/telegram-rs/telegram-bot' }
 futures = "0.3.4"
 libsqlite3-sys = { version = "*", features = ["bundled"] }

@@ -3,13 +3,14 @@ use std::time::Duration;
 
 use chrono::prelude::*;
 use chrono::{Datelike, Utc, Weekday};
+use log::{error, info};
+use num::traits::FromPrimitive;
+use telegram_bot::{Api, ChatId, ChatRef, SendMessage};
 use tokio::runtime::Runtime;
 
 use crate::db::client::Client as DbClient;
 use crate::db::models::Subscription;
 use crate::reddit::client::Client as RedditClient;
-use log::{error, info};
-use telegram_bot::{Api, ChatId, ChatRef, SendMessage};
 
 pub fn init_task(token: &str, database_url: &str) {
     let api = Api::new(&token);
@@ -21,15 +22,15 @@ pub fn init_task(token: &str, database_url: &str) {
 
         rt.block_on(async {
             loop {
-                let now = Utc::now();
-                // TODO: allow configuring per user and/or per user subscription
-                if now.weekday() != Weekday::Sun || now.hour() < 12 {
-                    thread::sleep(Duration::from_secs(10));
-                    continue;
-                }
-
                 if let Ok(user_subscriptions) = db.get_subscriptions() {
                     for user_subscription in user_subscriptions {
+                        let now = Utc::now();
+                        if now.weekday() != Weekday::from_i32(user_subscription.send_on).unwrap()
+                            || now.hour() < user_subscription.send_at as u32
+                        {
+                            continue;
+                        }
+
                         if let Some(date) = &user_subscription.last_sent_at {
                             if let Ok(parsed) = date.parse::<DateTime<Utc>>() {
                                 if parsed.date().eq(&now.date()) {

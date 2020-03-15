@@ -15,6 +15,8 @@ pub struct Subscription {
     pub user_id: String,
     pub subreddit: String,
     pub last_sent_at: Option<String>,
+    pub send_on: i32,
+    pub send_at: i32,
 }
 
 #[derive(Insertable)]
@@ -22,6 +24,9 @@ pub struct Subscription {
 pub struct NewSubscription<'a> {
     pub user_id: &'a str,
     pub subreddit: &'a str,
+    pub send_on: i32,
+    pub send_at: i32,
+    pub last_sent_at: Option<String>,
 }
 
 #[derive(Debug, Queryable, Insertable, Clone, PartialEq)]
@@ -30,4 +35,5 @@ pub struct Command {
     pub user_id: String,
     pub command: String,
     pub step: i32,
+    pub data: String,
 }

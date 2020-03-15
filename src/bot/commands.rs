@@ -8,6 +8,8 @@ use crate::db::client::Client as DbClient;
 use crate::db::models::Command;
 use crate::reddit::client::Client as RedditClient;
 use crate::task::task::process_subscription;
+use chrono::Weekday;
+use num::traits::FromPrimitive;
 
 const HELP_TEXT: &str = r#"
 You can send me these commands:
@@ -44,8 +46,10 @@ pub async fn subscribe(
     reddit_client: &RedditClient,
     from: &User,
     payload: Option<&str>,
+    send_on: Option<i32>,
+    send_at: Option<i32>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if let None = payload {
+    if payload.is_none() {
         api.send(from.text("Type the name of subreddit you want to subscribe to."))
             .await?;
 
@@ -53,6 +57,7 @@ pub async fn subscribe(
             user_id: from.id.to_string(),
             command: "/subscribe".to_string(),
             step: 0,
+            data: "".to_string(),
         };
 
         db.insert_or_update_last_command(&command).ok();
@@ -60,18 +65,26 @@ pub async fn subscribe(
         return Ok(());
     }
 
+    if send_on.is_none() || send_at.is_none() {
+        return Ok(());
+    }
+
+    let send_on = send_on.unwrap();
+    let send_at = send_at.unwrap();
+
     let data = payload.unwrap();
 
     if !reddit_client.validate_subreddit(&data).await {
         api.send(from.text("Invalid subreddit")).await?;
+        // TODO: return error
         return Ok(());
     }
 
-    match db.subscribe(&from.id.to_string(), &data) {
+    match db.subscribe(&from.id.to_string(), &data, send_on, send_at) {
         Ok(subscription) => {
             api.send(from.text(format!(
-                "Subscribed to: {}. Posts will be sent periodically on Sunday at around 12:00 UTC time.",
-                &data
+                "Subscribed to: {}. Posts will be sent periodically on {} at around {}:00 UTC time.",
+                &data, Weekday::from_i32(send_on).unwrap(), send_at
             )))
             .await?;
             process_subscription(&db, &api, &reddit_client, &subscription).await;
@@ -132,6 +145,7 @@ pub async fn unsubscribe(
                 user_id: from.id.to_string(),
                 command: "/unsubscribe".to_string(),
                 step: 0,
+                data: "".to_string(),
             };
             db.insert_or_update_last_command(&command).ok();
         }

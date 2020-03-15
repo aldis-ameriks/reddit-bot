@@ -69,8 +69,11 @@ pub async fn subscribe(
 
     match db.subscribe(&from.id.to_string(), &data) {
         Ok(subscription) => {
-            api.send(from.text(format!("Subscribed to: {}", &data)))
-                .await?;
+            api.send(from.text(format!(
+                "Subscribed to: {}. Posts will be sent periodically on Sunday at around 12:00 UTC time.",
+                &data
+            )))
+            .await?;
             process_subscription(&db, &api, &reddit_client, &subscription).await;
         }
         Err(err) => {

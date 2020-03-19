@@ -1,15 +1,15 @@
+use chrono::Weekday;
 use diesel::result::DatabaseErrorKind;
 use diesel::result::Error::DatabaseError;
 use log::error;
-use telegram_bot::prelude::*;
-use telegram_bot::{Api, InlineKeyboardButton, InlineKeyboardMarkup, ReplyMarkup, User};
+use num::traits::FromPrimitive;
 
 use crate::db::client::Client as DbClient;
 use crate::db::models::Command;
 use crate::reddit::client::Client as RedditClient;
 use crate::task::task::process_subscription;
-use chrono::Weekday;
-use num::traits::FromPrimitive;
+use crate::telegram::client::TelegramClient;
+use crate::telegram::types::{InlineKeyboardButton, InlineKeyboardMarkup, Message, ReplyMarkup};
 
 const HELP_TEXT: &str = r#"
 You can send me these commands:
@@ -22,39 +22,59 @@ You can send me these commands:
 "#;
 
 pub async fn start(
-    api: &Api,
+    telegram_client: &TelegramClient,
     db: &DbClient,
-    from: &User,
+    user_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if let Ok(_) = db.create_user(&from.id.to_string()) {
-        api.send(from.text(HELP_TEXT)).await?;
+    if let Ok(_) = db.create_user(user_id) {
+        telegram_client
+            .send_message(&Message {
+                chat_id: user_id,
+                text: HELP_TEXT,
+                ..Default::default()
+            })
+            .await?;
     }
     Ok(())
 }
 
-pub async fn stop(api: &Api, db: &DbClient, from: &User) -> Result<(), Box<dyn std::error::Error>> {
-    if let Ok(_) = db.delete_user(&from.id.to_string()) {
-        api.send(from.text("User and subscriptions deleted"))
+pub async fn stop(
+    telegram_client: &TelegramClient,
+    db: &DbClient,
+    user_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if let Ok(_) = db.delete_user(user_id) {
+        telegram_client
+            .send_message(&Message {
+                chat_id: user_id,
+                text: "User and subscriptions deleted",
+                ..Default::default()
+            })
             .await?;
     }
     Ok(())
 }
 
 pub async fn subscribe(
-    api: &Api,
+    telegram_client: &TelegramClient,
     db: &DbClient,
     reddit_client: &RedditClient,
-    from: &User,
+    user_id: &str,
     payload: Option<&str>,
     send_on: Option<i32>,
     send_at: Option<i32>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if payload.is_none() {
-        api.send(from.text("Type the name of subreddit you want to subscribe to."))
+        telegram_client
+            .send_message(&Message {
+                chat_id: user_id,
+                text: "Type the name of subreddit you want to subscribe to.",
+                ..Default::default()
+            })
             .await?;
 
         let command = Command {
-            user_id: from.id.to_string(),
+            user_id: user_id.to_string(),
             command: "/subscribe".to_string(),
             step: 0,
             data: "".to_string(),
@@ -75,27 +95,49 @@ pub async fn subscribe(
     let data = payload.unwrap();
 
     if !reddit_client.validate_subreddit(&data).await {
-        api.send(from.text("Invalid subreddit")).await?;
+        telegram_client
+            .send_message(&Message {
+                chat_id: user_id,
+                text: "Invalid subreddit",
+                ..Default::default()
+            })
+            .await?;
         // TODO: return error
         return Ok(());
     }
 
-    match db.subscribe(&from.id.to_string(), &data, send_on, send_at) {
+    match db.subscribe(user_id, &data, send_on, send_at) {
         Ok(subscription) => {
-            api.send(from.text(format!(
-                "Subscribed to: {}. Posts will be sent periodically on {} at around {}:00 UTC time.",
-                &data, Weekday::from_i32(send_on).unwrap(), send_at
-            )))
-            .await?;
-            process_subscription(&db, &api, &reddit_client, &subscription).await;
+            telegram_client
+                .send_message(&Message {
+                    chat_id: user_id,
+                    text: &format!(
+                        "Subscribed to: {}. Posts will be sent periodically on {} at around {}:00 UTC time.",
+                        &data, Weekday::from_i32(send_on).unwrap(), send_at
+                    ),
+                    ..Default::default()
+                })
+                .await?;
+            process_subscription(&db, &telegram_client, &reddit_client, &subscription).await;
         }
         Err(err) => {
             error!("err: {}", err);
             if let DatabaseError(DatabaseErrorKind::UniqueViolation, _) = err {
-                api.send(from.text(format!("Already subscribed to {}", &data)))
+                telegram_client
+                    .send_message(&Message {
+                        chat_id: user_id,
+                        text: &format!("Already subscribed to {}", &data),
+                        ..Default::default()
+                    })
                     .await?;
             } else {
-                api.send(from.text("Something went wrong")).await?;
+                telegram_client
+                    .send_message(&Message {
+                        chat_id: user_id,
+                        text: "Something went wrong",
+                        ..Default::default()
+                    })
+                    .await?;
             }
         }
     }
@@ -103,46 +145,51 @@ pub async fn subscribe(
 }
 
 pub async fn unsubscribe(
-    api: &Api,
+    telegram_client: &TelegramClient,
     db: &DbClient,
-    from: &User,
+    user_id: &str,
     data: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if let None = data {
-        if let Ok(res) = db.get_user_subscriptions(&from.id.to_string()) {
+        if let Ok(res) = db.get_user_subscriptions(user_id) {
             let buttons = res
                 .iter()
-                .map(|subscription| {
-                    InlineKeyboardButton::callback(
-                        subscription.subreddit.to_string(),
-                        subscription.subreddit.to_string(),
-                    )
+                .map(|subscription| InlineKeyboardButton {
+                    text: subscription.subreddit.clone(),
+                    callback_data: subscription.subreddit.clone(),
                 })
                 .collect::<Vec<InlineKeyboardButton>>();
 
-            let mut markup = InlineKeyboardMarkup::new();
+            let mut rows: Vec<Vec<InlineKeyboardButton>> = vec![];
             let mut row: Vec<InlineKeyboardButton> = vec![];
             let mut buttons_iterator = buttons.into_iter();
             while let Some(button) = buttons_iterator.next() {
                 row.push(button);
                 if row.len() == 2 {
-                    markup.add_row(row.clone());
+                    rows.push(row.clone());
                     row = vec![];
                 }
             }
 
             if row.len() > 0 {
-                markup.add_row(row);
+                rows.push(row);
             }
 
-            api.send(
-                from.text("Select subreddit")
-                    .reply_markup(ReplyMarkup::InlineKeyboardMarkup(markup)),
-            )
-            .await?;
+            let markup = InlineKeyboardMarkup {
+                inline_keyboard: rows,
+            };
+
+            telegram_client
+                .send_message(&Message {
+                    chat_id: user_id,
+                    text: "Select subreddit",
+                    reply_markup: Some(&ReplyMarkup::InlineKeyboardMarkup(markup)),
+                    ..Default::default()
+                })
+                .await?;
 
             let command = Command {
-                user_id: from.id.to_string(),
+                user_id: user_id.to_string(),
                 command: "/unsubscribe".to_string(),
                 step: 0,
                 data: "".to_string(),
@@ -153,8 +200,13 @@ pub async fn unsubscribe(
     }
 
     let data = data.unwrap();
-    if let Ok(_) = db.unsubscribe(&from.id.to_string(), &data) {
-        api.send(from.text(format!("Unsubscribed from: {}", &data)))
+    if let Ok(_) = db.unsubscribe(user_id, &data) {
+        telegram_client
+            .send_message(&Message {
+                chat_id: user_id,
+                text: &format!("Unsubscribed from: {}", &data),
+                ..Default::default()
+            })
             .await?;
     }
 
@@ -162,19 +214,30 @@ pub async fn unsubscribe(
 }
 
 pub async fn subscriptions(
-    api: &Api,
+    telegram_client: &TelegramClient,
     db: &DbClient,
-    from: &User,
+    user_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if let Ok(res) = db.get_user_subscriptions(&from.id.to_string()) {
+    if let Ok(res) = db.get_user_subscriptions(user_id) {
         let text = res
             .iter()
             .map(|subscription| format!("{}\n", subscription.subreddit))
             .collect::<String>();
         if let 0 = text.len() {
-            api.send(from.text("You have no subscriptions")).await?;
+            telegram_client
+                .send_message(&Message {
+                    chat_id: user_id,
+                    text: "You have no subscriptions",
+                    ..Default::default()
+                })
+                .await?;
         } else {
-            api.send(from.text(format!("You are currently subscribed to:\n{}", text)))
+            telegram_client
+                .send_message(&Message {
+                    chat_id: user_id,
+                    text: &format!("You are currently subscribed to:\n{}", text),
+                    ..Default::default()
+                })
                 .await?;
         }
     }
@@ -182,7 +245,16 @@ pub async fn subscriptions(
     Ok(())
 }
 
-pub async fn help(api: &Api, from: &User) -> Result<(), Box<dyn std::error::Error>> {
-    api.send(from.text(HELP_TEXT)).await?;
+pub async fn help(
+    telegram_client: &TelegramClient,
+    user_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    telegram_client
+        .send_message(&Message {
+            chat_id: user_id,
+            text: HELP_TEXT,
+            ..Default::default()
+        })
+        .await?;
     Ok(())
 }

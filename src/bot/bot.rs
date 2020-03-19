@@ -1,24 +1,26 @@
 use std::error::Error;
 
-use crate::bot::commands::{help, start, stop, subscribe, subscriptions, unsubscribe};
-use crate::db::client::Client as DbClient;
-use crate::reddit::client::Client as RedditClient;
 use chrono::Weekday;
 use futures::StreamExt;
 use log::{error, info, warn};
 use num::traits::FromPrimitive;
-use telegram_bot::prelude::*;
-use telegram_bot::{
-    Api, InlineKeyboardButton, InlineKeyboardMarkup, MessageKind, ReplyMarkup, UpdateKind, User,
-};
+use telegram_bot::{Api, MessageKind, UpdateKind};
+
+use crate::bot::commands::{help, start, stop, subscribe, subscriptions, unsubscribe};
+use crate::db::client::Client as DbClient;
+use crate::reddit::client::Client as RedditClient;
+use crate::telegram::client::TelegramClient;
+use crate::telegram::types::{InlineKeyboardButton, InlineKeyboardMarkup, Message, ReplyMarkup};
 
 pub async fn init_bot(token: &str, database_url: &str) {
     let db = DbClient::new(&database_url);
     let api = Api::new(&token);
     let reddit_client = RedditClient::new();
+    let telegram_client = TelegramClient::new(token.to_string());
 
-    let handle_stuff =
-        |data: String, from: User| handle_message(data, from, &api, &db, &reddit_client);
+    let handle_stuff = |data: String, user_id: String| {
+        handle_message(&db, &telegram_client, &reddit_client, data, user_id)
+    };
 
     let mut stream = api.stream();
     while let Some(update) = stream.next().await {
@@ -26,14 +28,16 @@ pub async fn init_bot(token: &str, database_url: &str) {
             match update.kind {
                 UpdateKind::Message(message) => {
                     if let MessageKind::Text { data, .. } = message.kind {
-                        if let Err(e) = handle_stuff(data, message.from).await {
+                        let user_id = message.from.id.to_string();
+                        if let Err(e) = handle_stuff(data, user_id).await {
                             error!("error handling message: {}", e);
                         }
                     }
                 }
                 UpdateKind::CallbackQuery(query) => {
                     if let Some(data) = query.data {
-                        if let Err(e) = handle_stuff(data, query.from).await {
+                        let user_id = query.from.id.to_string();
+                        if let Err(e) = handle_stuff(data, user_id).await {
                             error!("error handling message in callback query: {}", e);
                         }
                     } else {
@@ -47,26 +51,34 @@ pub async fn init_bot(token: &str, database_url: &str) {
 }
 
 async fn handle_message(
-    data: String,
-    from: User,
-    api: &Api,
     db: &DbClient,
+    telegram_client: &TelegramClient,
     reddit_client: &RedditClient,
+    data: String,
+    user_id: String,
 ) -> Result<(), Box<dyn Error>> {
-    info!(
-        "received message from: {}({}), message: {}",
-        &from.first_name, &from.id, data
-    );
+    info!("received message from: {}, message: {}", user_id, data);
 
     match data.as_ref() {
-        "/start" => start(&api, &db, &from).await?,
-        "/stop" => stop(&api, &db, &from).await?,
-        "/subscribe" => subscribe(&api, &db, &reddit_client, &from, None, None, None).await?,
-        "/unsubscribe" => unsubscribe(&api, &db, &from, None).await?,
-        "/subscriptions" => subscriptions(&api, &db, &from).await?,
-        "/help" => help(&api, &from).await?,
+        "/start" => start(&telegram_client, &db, &user_id).await?,
+        "/stop" => stop(&telegram_client, &db, &user_id).await?,
+        "/subscribe" => {
+            subscribe(
+                &telegram_client,
+                &db,
+                &reddit_client,
+                &user_id,
+                None,
+                None,
+                None,
+            )
+            .await?
+        }
+        "/unsubscribe" => unsubscribe(&telegram_client, &db, &user_id, None).await?,
+        "/subscriptions" => subscriptions(&telegram_client, &db, &user_id).await?,
+        "/help" => help(&telegram_client, &user_id).await?,
         _ => {
-            if let Ok(last_command) = db.get_users_last_command(&from.id.to_string()) {
+            if let Ok(last_command) = db.get_users_last_command(&user_id) {
                 if let Some(mut last_command) = last_command {
                     match last_command.command.as_str() {
                         // TODO: encapsulate step logic inside dialog struct
@@ -77,34 +89,40 @@ async fn handle_message(
                                     // TODO: allow specifying multiple subreddits
                                     // TODO: extract helper function for building inline options
                                     let buttons = (0..7)
-                                        .map(|weekday| {
-                                            InlineKeyboardButton::callback(
-                                                format!("{}", Weekday::from_u8(weekday).unwrap()),
-                                                weekday.to_string(),
-                                            )
+                                        .map(|weekday| InlineKeyboardButton {
+                                            text: format!("{}", Weekday::from_u8(weekday).unwrap()),
+                                            callback_data: format!("{}", weekday).clone(),
                                         })
                                         .collect::<Vec<InlineKeyboardButton>>();
-                                    let mut markup = InlineKeyboardMarkup::new();
                                     let mut row: Vec<InlineKeyboardButton> = vec![];
+                                    let mut rows: Vec<Vec<InlineKeyboardButton>> = vec![];
                                     let mut buttons_iterator = buttons.into_iter();
                                     while let Some(button) = buttons_iterator.next() {
                                         row.push(button);
                                         if row.len() == 2 {
-                                            markup.add_row(row.clone());
+                                            rows.push(row.clone());
                                             row = vec![];
                                         }
                                     }
 
                                     if row.len() > 0 {
-                                        markup.add_row(row);
+                                        rows.push(row);
                                     }
-                                    api.send(
-                                        from.text("On which day do you want to receive the posts?")
-                                            .reply_markup(ReplyMarkup::InlineKeyboardMarkup(
+
+                                    let markup = InlineKeyboardMarkup {
+                                        inline_keyboard: rows,
+                                    };
+
+                                    telegram_client
+                                        .send_message(&Message {
+                                            chat_id: &user_id,
+                                            text: "On which day do you want to receive the posts?",
+                                            reply_markup: Some(&ReplyMarkup::InlineKeyboardMarkup(
                                                 markup,
                                             )),
-                                    )
-                                    .await?;
+                                            ..Default::default()
+                                        })
+                                        .await?;
 
                                     last_command.step += 1;
                                     last_command.data = data;
@@ -113,33 +131,41 @@ async fn handle_message(
                                 1 => {
                                     // TODO: extract helper function for building inline options
                                     let buttons = (0..24)
-                                        .map(|hour| {
-                                            InlineKeyboardButton::callback(
-                                                format!("{}:00", hour),
-                                                format!("{}", hour),
-                                            )
+                                        .map(|hour| InlineKeyboardButton {
+                                            text: format!("{}:00", hour),
+                                            callback_data: format!("{}", hour),
                                         })
                                         .collect::<Vec<InlineKeyboardButton>>();
-                                    let mut markup = InlineKeyboardMarkup::new();
+
                                     let mut row: Vec<InlineKeyboardButton> = vec![];
+                                    let mut rows: Vec<Vec<InlineKeyboardButton>> = vec![];
                                     let mut buttons_iterator = buttons.into_iter();
                                     while let Some(button) = buttons_iterator.next() {
                                         row.push(button);
                                         if row.len() == 3 {
-                                            markup.add_row(row.clone());
+                                            rows.push(row.clone());
                                             row = vec![];
                                         }
                                     }
 
                                     if row.len() > 0 {
-                                        markup.add_row(row);
+                                        rows.push(row);
                                     }
-                                    api.send(
-                                        from.text("At what time? (UTC)").reply_markup(
-                                            ReplyMarkup::InlineKeyboardMarkup(markup),
-                                        ),
-                                    )
-                                    .await?;
+
+                                    let markup = InlineKeyboardMarkup {
+                                        inline_keyboard: rows,
+                                    };
+
+                                    telegram_client
+                                        .send_message(&Message {
+                                            chat_id: &user_id,
+                                            text: "At what time? (UTC)",
+                                            reply_markup: Some(&ReplyMarkup::InlineKeyboardMarkup(
+                                                markup,
+                                            )),
+                                            ..Default::default()
+                                        })
+                                        .await?;
 
                                     last_command.step += 1;
                                     last_command.data = format!("{};{}", last_command.data, data);
@@ -153,10 +179,10 @@ async fn handle_message(
                                     let time = data.parse::<i32>().unwrap_or(12);
 
                                     subscribe(
-                                        &api,
+                                        &telegram_client,
                                         &db,
                                         &reddit_client,
-                                        &from,
+                                        &user_id,
                                         Some(&subreddit),
                                         Some(day),
                                         Some(time),
@@ -169,7 +195,7 @@ async fn handle_message(
                         }
                         "/unsubscribe" => {
                             if last_command.step == 0 {
-                                unsubscribe(&api, &db, &from, Some(&data)).await?;
+                                unsubscribe(&telegram_client, &db, &user_id, Some(&data)).await?;
                                 last_command.step += 1;
                                 db.insert_or_update_last_command(&last_command).ok();
                                 return Ok(());
@@ -179,7 +205,13 @@ async fn handle_message(
                     }
                 }
             }
-            api.send(from.text("Say what?")).await?;
+            telegram_client
+                .send_message(&Message {
+                    chat_id: &user_id,
+                    text: "Say what?",
+                    ..Default::default()
+                })
+                .await?;
         }
     }
     Ok(())

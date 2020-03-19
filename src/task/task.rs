@@ -5,17 +5,18 @@ use chrono::prelude::*;
 use chrono::{Datelike, Utc, Weekday};
 use log::{error, info};
 use num::traits::FromPrimitive;
-use telegram_bot::{Api, ChatId, ChatRef, SendMessage};
 use tokio::runtime::Runtime;
 
 use crate::db::client::Client as DbClient;
 use crate::db::models::Subscription;
 use crate::reddit::client::Client as RedditClient;
+use crate::telegram::client::TelegramClient;
+use crate::telegram::types::Message;
 
 pub fn init_task(token: &str, database_url: &str) {
-    let api = Api::new(&token);
     let db = DbClient::new(&database_url);
     let reddit_client = RedditClient::new();
+    let telegram_client = TelegramClient::new(token.to_string());
 
     thread::spawn(move || {
         let mut rt = Runtime::new().unwrap();
@@ -38,7 +39,13 @@ pub fn init_task(token: &str, database_url: &str) {
                                 }
                             }
                         }
-                        process_subscription(&db, &api, &reddit_client, &user_subscription).await;
+                        process_subscription(
+                            &db,
+                            &telegram_client,
+                            &reddit_client,
+                            &user_subscription,
+                        )
+                        .await;
                     }
                 }
                 thread::sleep(Duration::from_secs(10));
@@ -49,7 +56,7 @@ pub fn init_task(token: &str, database_url: &str) {
 
 pub async fn process_subscription(
     db: &DbClient,
-    api: &Api,
+    telegram_client: &TelegramClient,
     reddit_client: &RedditClient,
     user_subscription: &Subscription,
 ) {
@@ -65,16 +72,13 @@ pub async fn process_subscription(
             message.push_str(format!("{}\n", post).as_str());
         }
 
-        if let Ok(_) = api
-            .send(
-                SendMessage::new(
-                    ChatRef::Id(ChatId::new(
-                        user_subscription.user_id.parse::<i64>().unwrap(),
-                    )),
-                    message,
-                )
-                .disable_preview(),
-            )
+        if let Ok(_) = telegram_client
+            .send_message(&Message {
+                chat_id: &user_subscription.user_id,
+                text: &message,
+                disable_web_page_preview: true,
+                ..Default::default()
+            })
             .await
         {
             info!("sent reddit posts");

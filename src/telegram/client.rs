@@ -126,10 +126,10 @@ mod tests {
     async fn send_message_success() {
         let url = &server_url();
         let resp = r#"{"ok":true,"result":{"message_id":691,"from":{"id":414141,"is_bot":true,"first_name":"Bot","username":"Bot"},"chat":{"id":123,"first_name":"Name","username":"username","type":"private"},"date":1581200384,"text":"This is a test message"}}"#;
-        let inline_keyboard = vec![InlineKeyboardButton {
-            text: "test",
-            callback_data: "callback_data",
-        }];
+        let inline_keyboard = vec![vec![InlineKeyboardButton {
+            text: "test".to_string(),
+            callback_data: "callback_data".to_string(),
+        }]];
         let markup = InlineKeyboardMarkup { inline_keyboard };
         let reply_markup = ReplyMarkup::InlineKeyboardMarkup(markup);
         let text = "message text";
@@ -280,8 +280,8 @@ mod tests {
     async fn edit_message_text_success() {
         let url = &server_url();
         let inline_keyboard = vec![vec![InlineKeyboardButton {
-            text: "test",
-            callback_data: "callback_daa",
+            text: "test".to_string(),
+            callback_data: "callback_data".to_string(),
         }]];
         let markup = InlineKeyboardMarkup { inline_keyboard };
         let reply_markup = ReplyMarkup::InlineKeyboardMarkup(markup);
@@ -313,8 +313,8 @@ mod tests {
         let url = &server_url();
         let error = r#"{"ok":false,"error_code":400,"description":"Bad Request: chat not found"}"#;
         let inline_keyboard = vec![vec![InlineKeyboardButton {
-            text: "test",
-            callback_data: "callback_daa",
+            text: "test".to_string(),
+            callback_data: "callback_data".to_string(),
         }]];
         let markup = InlineKeyboardMarkup { inline_keyboard };
         let reply_markup = ReplyMarkup::InlineKeyboardMarkup(markup);

@@ -54,12 +54,12 @@ async fn handle_message(
     db: &DbClient,
     telegram_client: &TelegramClient,
     reddit_client: &RedditClient,
-    data: String,
+    payload: String,
     user_id: String,
 ) -> Result<(), Box<dyn Error>> {
-    info!("received message from: {}, message: {}", user_id, data);
+    info!("received message from: {}, message: {}", user_id, payload);
 
-    match data.as_ref() {
+    match payload.as_ref() {
         "/start" => start(&telegram_client, &db, &user_id).await?,
         "/stop" => stop(&telegram_client, &db, &user_id).await?,
         "/subscribe" => {
@@ -78,13 +78,13 @@ async fn handle_message(
         "/subscriptions" => subscriptions(&telegram_client, &db, &user_id).await?,
         "/help" => help(&telegram_client, &user_id).await?,
         _ => {
-            if let Ok(last_command) = db.get_users_last_command(&user_id) {
+            if let Ok(last_command) = db.get_users_dialog(&user_id) {
                 if let Some(mut last_command) = last_command {
                     match last_command.command.as_str() {
                         // TODO: encapsulate step logic inside dialog struct
                         "/subscribe" => {
-                            match last_command.step {
-                                0 => {
+                            match last_command.step.as_str() {
+                                "Start" => {
                                     // TODO: validate subreddit
                                     // TODO: allow specifying multiple subreddits
                                     // TODO: extract helper function for building inline options
@@ -124,11 +124,11 @@ async fn handle_message(
                                         })
                                         .await?;
 
-                                    last_command.step += 1;
-                                    last_command.data = data;
-                                    db.insert_or_update_last_command(&last_command).ok();
+                                    last_command.step = "Subreddit".to_string();
+                                    last_command.data = payload;
+                                    db.insert_or_update_dialog(&last_command).ok();
                                 }
-                                1 => {
+                                "Subreddit" => {
                                     // TODO: extract helper function for building inline options
                                     let buttons = (0..24)
                                         .map(|hour| InlineKeyboardButton {
@@ -167,16 +167,17 @@ async fn handle_message(
                                         })
                                         .await?;
 
-                                    last_command.step += 1;
-                                    last_command.data = format!("{};{}", last_command.data, data);
-                                    db.insert_or_update_last_command(&last_command).ok();
+                                    last_command.step = "Weekday".to_string();
+                                    last_command.data =
+                                        format!("{};{}", last_command.data, payload);
+                                    db.insert_or_update_dialog(&last_command).ok();
                                 }
-                                2 => {
+                                "Weekday" => {
                                     let prev_data =
                                         last_command.data.split(";").collect::<Vec<&str>>();
                                     let subreddit = prev_data.get(0).unwrap();
                                     let day = prev_data.get(1).unwrap().parse::<i32>().unwrap_or(0);
-                                    let time = data.parse::<i32>().unwrap_or(12);
+                                    let time = payload.parse::<i32>().unwrap_or(12);
 
                                     subscribe(
                                         &telegram_client,
@@ -194,10 +195,11 @@ async fn handle_message(
                             return Ok(());
                         }
                         "/unsubscribe" => {
-                            if last_command.step == 0 {
-                                unsubscribe(&telegram_client, &db, &user_id, Some(&data)).await?;
-                                last_command.step += 1;
-                                db.insert_or_update_last_command(&last_command).ok();
+                            if last_command.step.as_str() == "Start" {
+                                unsubscribe(&telegram_client, &db, &user_id, Some(&payload))
+                                    .await?;
+                                last_command.step = "Subreddit".to_string();
+                                db.insert_or_update_dialog(&last_command).ok();
                                 return Ok(());
                             }
                         }

@@ -3,7 +3,7 @@ use diesel::prelude::*;
 use diesel::result::Error;
 use log::{error, info};
 
-use crate::db::models::Command;
+use crate::db::models::Dialog;
 
 use super::models::{NewSubscription, Subscription, User};
 use super::schema;
@@ -168,11 +168,11 @@ impl Client {
         }
     }
 
-    pub fn get_users_last_command(&self, user_id: &str) -> Result<Option<Command>, Error> {
-        use schema::commands::dsl;
-        match dsl::commands
+    pub fn get_users_dialog(&self, user_id: &str) -> Result<Option<Dialog>, Error> {
+        use schema::dialogs::dsl;
+        match dsl::dialogs
             .filter(dsl::user_id.eq(user_id))
-            .load::<Command>(&self.0)
+            .load::<Dialog>(&self.0)
         {
             Ok(result) => {
                 if let Some(result) = result.get(0) {
@@ -182,23 +182,23 @@ impl Client {
                 }
             }
             Err(err) => {
-                error!("failed to get users last command: {}", err);
+                error!("failed to get users dialog: {}", err);
                 Err(err)
             }
         }
     }
 
-    pub fn insert_or_update_last_command(&self, command: &Command) -> Result<(), Error> {
-        use schema::commands::dsl;
-        info!("inserting or updating last command: {:?}", command);
+    pub fn insert_or_update_dialog(&self, dialog: &Dialog) -> Result<(), Error> {
+        use schema::dialogs::dsl;
+        info!("inserting or updating dialog: {:?}", dialog);
 
-        match diesel::replace_into(dsl::commands)
-            .values(vec![command])
+        match diesel::replace_into(dsl::dialogs)
+            .values(vec![dialog])
             .execute(&self.0)
         {
             Ok(_) => Ok(()),
             Err(err) => {
-                error!("failed to insert or update last command: {}", err);
+                error!("failed to insert or update dialog: {}", err);
                 Err(err)
             }
         }
@@ -330,27 +330,30 @@ mod test {
 
     #[test]
     #[serial]
-    fn commands() {
+    fn dialogs() {
         let client = setup();
         client.create_user(USER_ID).unwrap();
 
-        let result = client.get_users_last_command(USER_ID).unwrap();
+        let result = client.get_users_dialog(USER_ID).unwrap();
         assert!(result.is_none());
 
-        let command = Command {
+        let dialog = Dialog {
             user_id: USER_ID.to_string(),
             command: "/subscribe".to_string(),
-            step: 2,
+            step: "One".to_string(),
             data: "".to_string(),
         };
 
-        client.insert_or_update_last_command(&command).unwrap();
-        let result = client.get_users_last_command(USER_ID).unwrap().unwrap();
-        assert_eq!(result, command);
+        client.insert_or_update_dialog(&dialog).unwrap();
+        let result = client.get_users_dialog(USER_ID).unwrap().unwrap();
+        assert_eq!(result, dialog);
 
-        let command2 = Command { step: 3, ..command };
-        client.insert_or_update_last_command(&command2).unwrap();
-        let result = client.get_users_last_command(USER_ID).unwrap().unwrap();
-        assert_eq!(result, command2);
+        let dialog2 = Dialog {
+            step: "Two".to_string(),
+            ..dialog
+        };
+        client.insert_or_update_dialog(&dialog2).unwrap();
+        let result = client.get_users_dialog(USER_ID).unwrap().unwrap();
+        assert_eq!(result, dialog2);
     }
 }

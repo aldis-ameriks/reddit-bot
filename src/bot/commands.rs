@@ -5,7 +5,7 @@ use log::error;
 use num::traits::FromPrimitive;
 
 use crate::db::client::Client as DbClient;
-use crate::db::models::Command;
+use crate::db::models::Dialog;
 use crate::reddit::client::Client as RedditClient;
 use crate::task::task::process_subscription;
 use crate::telegram::client::TelegramClient;
@@ -60,11 +60,11 @@ pub async fn subscribe(
     db: &DbClient,
     reddit_client: &RedditClient,
     user_id: &str,
-    payload: Option<&str>,
+    subreddit: Option<&str>,
     send_on: Option<i32>,
     send_at: Option<i32>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if payload.is_none() {
+    if subreddit.is_none() {
         telegram_client
             .send_message(&Message {
                 chat_id: user_id,
@@ -73,14 +73,14 @@ pub async fn subscribe(
             })
             .await?;
 
-        let command = Command {
+        let command = Dialog {
             user_id: user_id.to_string(),
             command: "/subscribe".to_string(),
-            step: 0,
+            step: "Start".to_string(),
             data: "".to_string(),
         };
 
-        db.insert_or_update_last_command(&command).ok();
+        db.insert_or_update_dialog(&command).ok();
 
         return Ok(());
     }
@@ -91,10 +91,9 @@ pub async fn subscribe(
 
     let send_on = send_on.unwrap();
     let send_at = send_at.unwrap();
+    let subreddit = subreddit.unwrap();
 
-    let data = payload.unwrap();
-
-    if !reddit_client.validate_subreddit(&data).await {
+    if !reddit_client.validate_subreddit(&subreddit).await {
         telegram_client
             .send_message(&Message {
                 chat_id: user_id,
@@ -106,14 +105,14 @@ pub async fn subscribe(
         return Ok(());
     }
 
-    match db.subscribe(user_id, &data, send_on, send_at) {
+    match db.subscribe(user_id, &subreddit, send_on, send_at) {
         Ok(subscription) => {
             telegram_client
                 .send_message(&Message {
                     chat_id: user_id,
                     text: &format!(
                         "Subscribed to: {}. Posts will be sent periodically on {} at around {}:00 UTC time.",
-                        &data, Weekday::from_i32(send_on).unwrap(), send_at
+                        &subreddit, Weekday::from_i32(send_on).unwrap(), send_at
                     ),
                     ..Default::default()
                 })
@@ -126,7 +125,7 @@ pub async fn subscribe(
                 telegram_client
                     .send_message(&Message {
                         chat_id: user_id,
-                        text: &format!("Already subscribed to {}", &data),
+                        text: &format!("Already subscribed to {}", &subreddit),
                         ..Default::default()
                     })
                     .await?;
@@ -188,13 +187,13 @@ pub async fn unsubscribe(
                 })
                 .await?;
 
-            let command = Command {
+            let command = Dialog {
                 user_id: user_id.to_string(),
                 command: "/unsubscribe".to_string(),
-                step: 0,
+                step: "Start".to_string(),
                 data: "".to_string(),
             };
-            db.insert_or_update_last_command(&command).ok();
+            db.insert_or_update_dialog(&command).ok();
         }
         return Ok(());
     }

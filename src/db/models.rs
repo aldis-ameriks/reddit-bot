@@ -1,4 +1,4 @@
-use super::schema::commands;
+use super::schema::dialogs;
 use super::schema::users;
 use super::schema::users_subscriptions;
 
@@ -30,10 +30,10 @@ pub struct NewSubscription<'a> {
 }
 
 #[derive(Debug, Queryable, Insertable, Clone, PartialEq)]
-#[table_name = "commands"]
-pub struct Command {
+#[table_name = "dialogs"]
+pub struct Dialog {
     pub user_id: String,
     pub command: String,
-    pub step: i32,
+    pub step: String,
     pub data: String,
 }

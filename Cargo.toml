@@ -21,6 +21,8 @@ num = "0.2.1"
 telegram-bot = { git = 'https://github.com/telegram-rs/telegram-bot' }
 futures = "0.3.4"
 libsqlite3-sys = { version = "*", features = ["bundled"] }
+strum = "0.18.0"
+strum_macros = "0.18.0"
 
 [dev-dependencies]
 mockito = "0.23.0"

@@ -16,8 +16,6 @@ You can send me these commands:
 /help
 "#;
 
-const ERROR_TEXT: &str = "Looks like I'm having a technical glitch. Something went wrong.";
-
 pub async fn start(
     telegram_client: &TelegramClient,
     db: &DbClient,
@@ -32,6 +30,7 @@ pub async fn start(
                     ..Default::default()
                 })
                 .await?;
+            Ok(())
         }
         Err(DatabaseError(DatabaseErrorKind::UniqueViolation, _)) => {
             telegram_client
@@ -41,18 +40,10 @@ pub async fn start(
                     ..Default::default()
                 })
                 .await?;
+            Ok(())
         }
-        Err(_) => {
-            telegram_client
-                .send_message(&Message {
-                    chat_id: user_id,
-                    text: ERROR_TEXT,
-                    ..Default::default()
-                })
-                .await?;
-        }
+        Err(err) => Err(Box::new(err)),
     }
-    Ok(())
 }
 
 pub async fn stop(
@@ -60,15 +51,15 @@ pub async fn stop(
     db: &DbClient,
     user_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if let Ok(_) = db.delete_user(user_id) {
-        telegram_client
-            .send_message(&Message {
-                chat_id: user_id,
-                text: "User and subscriptions deleted",
-                ..Default::default()
-            })
-            .await?;
-    }
+    db.delete_user(user_id)?;
+    telegram_client
+        .send_message(&Message {
+            chat_id: user_id,
+            text: "User and subscriptions deleted",
+            ..Default::default()
+        })
+        .await?;
+
     Ok(())
 }
 
@@ -158,7 +149,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn start_new_user() {
+    async fn start_success() {
         let url = &server_url();
         let resp = r#"{"ok":true,"result":{"message_id":691,"from":{"id":414141,"is_bot":true,"first_name":"Bot","username":"Bot"},"chat":{"id":123,"first_name":"Name","username":"username","type":"private"},"date":1581200384,"text":"This is a test message"}}"#;
         let message = Message {
@@ -222,12 +213,27 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn start_db_error() {
+    async fn start_error() {
+        let url = &server_url();
+        let _m = mock("POST", format!("/bot{}/sendMessage", TOKEN).as_str())
+            .expect(0)
+            .create();
+
+        let telegram_client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
+        let db_client = setup_test_db_with(false);
+        let result = start(&telegram_client, &db_client, USER_ID).await;
+        assert!(result.is_err());
+        _m.assert();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn stop_success() {
         let url = &server_url();
         let resp = r#"{"ok":true,"result":{"message_id":691,"from":{"id":414141,"is_bot":true,"first_name":"Bot","username":"Bot"},"chat":{"id":123,"first_name":"Name","username":"username","type":"private"},"date":1581200384,"text":"This is a test message"}}"#;
         let message = Message {
             chat_id: USER_ID,
-            text: ERROR_TEXT,
+            text: "User and subscriptions deleted",
             ..Default::default()
         };
 
@@ -240,8 +246,32 @@ mod tests {
             .create();
 
         let telegram_client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
+        let db_client = setup_test_db();
+        db_client.create_user(USER_ID).unwrap();
+        let users = db_client.get_users().unwrap();
+        assert_eq!(users.len(), 1);
+        assert_eq!(users[0].id, USER_ID);
+
+        stop(&telegram_client, &db_client, USER_ID).await.unwrap();
+
+        let users = db_client.get_users().unwrap();
+        assert_eq!(users.len(), 0);
+        _m.assert();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn stop_error() {
+        let url = &server_url();
+        let _m = mock("POST", format!("/bot{}/sendMessage", TOKEN).as_str())
+            .expect(0)
+            .create();
+
+        let telegram_client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
         let db_client = setup_test_db_with(false);
-        start(&telegram_client, &db_client, USER_ID).await.unwrap();
+
+        let result = stop(&telegram_client, &db_client, USER_ID).await;
+        assert!(result.is_err());
         _m.assert();
     }
 }

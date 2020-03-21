@@ -11,6 +11,8 @@ use crate::reddit::client::RedditClient;
 use crate::telegram::client::TelegramClient;
 use crate::telegram::types::Message;
 
+const ERROR_TEXT: &str = "Looks like I'm having a technical glitch. Something went wrong.";
+
 pub async fn init_bot(token: &str, database_url: &str) {
     let db = DbClient::new(&database_url);
     let api = Api::new(&token);
@@ -28,16 +30,32 @@ pub async fn init_bot(token: &str, database_url: &str) {
                 UpdateKind::Message(message) => {
                     if let MessageKind::Text { data, .. } = message.kind {
                         let user_id = message.from.id.to_string();
-                        if let Err(e) = handle_stuff(data, user_id).await {
+                        if let Err(e) = handle_stuff(data, user_id.clone()).await {
                             error!("error handling message: {}", e);
+                            telegram_client
+                                .send_message(&Message {
+                                    chat_id: &user_id,
+                                    text: ERROR_TEXT,
+                                    ..Default::default()
+                                })
+                                .await
+                                .ok();
                         }
                     }
                 }
                 UpdateKind::CallbackQuery(query) => {
                     if let Some(data) = query.data {
                         let user_id = query.from.id.to_string();
-                        if let Err(e) = handle_stuff(data, user_id).await {
+                        if let Err(e) = handle_stuff(data, user_id.clone()).await {
                             error!("error handling message in callback query: {}", e);
+                            telegram_client
+                                .send_message(&Message {
+                                    chat_id: &user_id,
+                                    text: ERROR_TEXT,
+                                    ..Default::default()
+                                })
+                                .await
+                                .ok();
                         }
                     } else {
                         warn!("empty message in callback query");

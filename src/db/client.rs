@@ -8,8 +8,6 @@ use crate::db::models::DialogEntity;
 use super::models::{NewSubscription, Subscription, User};
 use super::schema;
 
-embed_migrations!();
-
 pub struct DbClient {
     pub conn: SqliteConnection,
 }
@@ -20,8 +18,6 @@ impl DbClient {
         conn.execute("PRAGMA foreign_keys = ON")
             .expect("Failed to enable foreign key support");
 
-        // TODO: run migration on applications startup
-        embedded_migrations::run(&conn).unwrap();
         DbClient { conn }
     }
 

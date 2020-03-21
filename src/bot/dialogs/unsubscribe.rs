@@ -82,6 +82,7 @@ impl Dialog<Unsubscribe> {
                         })
                         .await?;
                 }
+                db.delete_dialog(&self.user_id).ok();
             }
         }
         Ok(())

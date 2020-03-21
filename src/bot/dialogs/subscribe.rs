@@ -163,6 +163,7 @@ impl Dialog<Subscribe> {
                         }
                     }
                 }
+                db.delete_dialog(&self.user_id).ok();
             }
         }
         Ok(())

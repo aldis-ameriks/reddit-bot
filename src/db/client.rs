@@ -195,6 +195,22 @@ impl DbClient {
             }
         }
     }
+
+    pub fn delete_dialog(&self, user_id: &str) -> Result<(), Error> {
+        use schema::dialogs::dsl;
+        info!("deleting dialog for user: {}", user_id);
+
+        match diesel::delete(dsl::dialogs)
+            .filter(dsl::user_id.eq(user_id))
+            .execute(&self.conn)
+        {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                error!("failed to delete dialog: {}", err);
+                Err(err)
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -339,5 +355,9 @@ mod test {
         client.insert_or_update_dialog(&dialog2).unwrap();
         let result = client.get_users_dialog(USER_ID).unwrap();
         assert_eq!(result, dialog2);
+
+        client.delete_dialog(USER_ID).unwrap();
+        let result = client.get_users_dialog(USER_ID);
+        assert!(result.is_err());
     }
 }

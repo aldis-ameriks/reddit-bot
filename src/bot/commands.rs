@@ -69,6 +69,7 @@ pub async fn subscribe(
     reddit_client: &RedditClient,
     user_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    db.create_user(user_id).ok();
     Dialog::<Subscribe>::new(user_id.to_string())
         .handle_current_step(&telegram_client, &db, &reddit_client, "")
         .await?;
@@ -81,6 +82,7 @@ pub async fn unsubscribe(
     db: &DbClient,
     user_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    db.create_user(user_id).ok();
     Dialog::<Unsubscribe>::new(user_id.to_string())
         .handle_current_step(&telegram_client, &db, "")
         .await?;
@@ -94,7 +96,6 @@ pub async fn subscriptions(
     user_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let subscriptions = db.get_user_subscriptions(user_id)?;
-
     if subscriptions.is_empty() {
         telegram_client
             .send_message(&Message {
@@ -255,12 +256,65 @@ mod tests {
         };
         let _m = mock_send_message_success(TOKEN, &message);
         let db_client = setup_test_db();
+        db_client.create_user(USER_ID).unwrap();
         let reddit_client = RedditClient::new_with(url);
         let telegram_client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
 
         subscribe(&telegram_client, &db_client, &reddit_client, USER_ID)
             .await
             .unwrap();
+        _m.assert();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn subscribe_without_user() {
+        let url = &server_url();
+        let message = Message {
+            chat_id: USER_ID,
+            text: "Type the name of subreddit you want to subscribe to",
+            ..Default::default()
+        };
+        let _m = mock_send_message_success(TOKEN, &message);
+        let db_client = setup_test_db();
+        let reddit_client = RedditClient::new_with(url);
+        let telegram_client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
+
+        let users = db_client.get_users().unwrap();
+        assert_eq!(users.len(), 0);
+
+        subscribe(&telegram_client, &db_client, &reddit_client, USER_ID)
+            .await
+            .unwrap();
+
+        let users = db_client.get_users().unwrap();
+        assert_eq!(users.len(), 1);
+        assert_eq!(users[0].id, USER_ID);
+
+        _m.assert();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn unsubscribe_without_user() {
+        let url = &server_url();
+        let message = Message {
+            chat_id: USER_ID,
+            text: "You have no subscriptions to unsubscribe from",
+            ..Default::default()
+        };
+        let _m = mock_send_message_success(TOKEN, &message);
+        let db_client = setup_test_db();
+        let telegram_client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
+
+        unsubscribe(&telegram_client, &db_client, USER_ID)
+            .await
+            .unwrap();
+
+        let users = db_client.get_users().unwrap();
+        assert_eq!(users.len(), 1);
+        assert_eq!(users[0].id, USER_ID);
+
         _m.assert();
     }
 

@@ -14,6 +14,8 @@ You can send me these commands:
 /unsubscribe
 /subscriptions
 /help
+
+Bot is open source and available here https://github.com/aldis-ameriks/reddit-bot. If you encounter any issues feel free to open an issue.
 "#;
 
 pub async fn start(

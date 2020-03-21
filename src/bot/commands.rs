@@ -4,9 +4,9 @@ use diesel::result::Error::DatabaseError;
 use log::error;
 use num::traits::FromPrimitive;
 
-use crate::db::client::Client as DbClient;
+use crate::db::client::DbClient;
 use crate::db::models::DialogEntity;
-use crate::reddit::client::Client as RedditClient;
+use crate::reddit::client::RedditClient;
 use crate::task::task::process_subscription;
 use crate::telegram::client::TelegramClient;
 use crate::telegram::types::{InlineKeyboardButton, InlineKeyboardMarkup, Message, ReplyMarkup};

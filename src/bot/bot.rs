@@ -7,8 +7,8 @@ use num::traits::FromPrimitive;
 use telegram_bot::{Api, MessageKind, UpdateKind};
 
 use crate::bot::commands::{help, start, stop, subscribe, subscriptions, unsubscribe};
-use crate::db::client::Client as DbClient;
-use crate::reddit::client::Client as RedditClient;
+use crate::db::client::DbClient;
+use crate::reddit::client::RedditClient;
 use crate::telegram::client::TelegramClient;
 use crate::telegram::types::{InlineKeyboardButton, InlineKeyboardMarkup, Message, ReplyMarkup};
 

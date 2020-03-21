@@ -10,17 +10,17 @@ use super::schema;
 
 embed_migrations!();
 
-pub struct Client(SqliteConnection);
+pub struct DbClient(SqliteConnection);
 
-impl Client {
-    pub fn new(url: &str) -> Client {
+impl DbClient {
+    pub fn new(url: &str) -> DbClient {
         let conn = SqliteConnection::establish(url).expect(&format!("Error connecting to {}", url));
         conn.execute("PRAGMA foreign_keys = ON")
             .expect("Failed to enable foreign key support");
 
         // TODO: run migration on applications startup
         embedded_migrations::run(&conn).unwrap();
-        Client(conn)
+        DbClient(conn)
     }
 
     pub fn create_user(&self, id: &str) -> Result<User, Error> {
@@ -214,10 +214,10 @@ mod test {
 
     const USER_ID: &str = "1";
 
-    pub fn setup() -> Client {
+    pub fn setup() -> DbClient {
         std::fs::create_dir(".tmp").err();
         std::fs::remove_file(".tmp/test.db").err();
-        let client = Client::new("file:.tmp/test.db");
+        let client = DbClient::new("file:.tmp/test.db");
         run_pending_migrations(&client.0).unwrap();
         client
     }

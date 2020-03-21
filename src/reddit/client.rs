@@ -4,20 +4,20 @@ use serde_json::Value;
 use super::error::Error;
 use super::post::Post;
 
-pub struct Client {
+pub struct RedditClient {
     base_url: String,
 }
 
-impl Client {
+impl RedditClient {
     pub fn new() -> Self {
-        Client {
+        RedditClient {
             base_url: String::from("https://reddit.com"),
         }
     }
 
     #[allow(dead_code)]
     pub fn new_with(base_url: &str) -> Self {
-        Client {
+        RedditClient {
             base_url: base_url.to_string(),
         }
     }
@@ -74,7 +74,7 @@ mod tests {
 
     #[test]
     fn correct_domain() {
-        let reddit_client = Client::new();
+        let reddit_client = RedditClient::new();
         assert_eq!(reddit_client.base_url, "https://reddit.com");
     }
 
@@ -93,7 +93,7 @@ mod tests {
         .with_body(body)
         .create();
 
-        let reddit_client = Client::new_with(url);
+        let reddit_client = RedditClient::new_with(url);
         let result = reddit_client.fetch_posts(subreddit).await.unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(
@@ -131,7 +131,7 @@ mod tests {
         .with_body(body)
         .create();
 
-        let reddit_client = Client::new_with(url);
+        let reddit_client = RedditClient::new_with(url);
         let result = reddit_client.fetch_posts(subreddit).await.unwrap();
         assert_eq!(result.len(), 0);
         _m.assert();
@@ -156,7 +156,7 @@ mod tests {
         .with_body(body)
         .create();
 
-        let reddit_client = Client::new_with(url);
+        let reddit_client = RedditClient::new_with(url);
         reddit_client.fetch_posts(subreddit).await.unwrap();
         _m.assert();
     }
@@ -171,7 +171,7 @@ mod tests {
             .with_header("content-type", "application/json")
             .create();
 
-        let reddit_client = Client::new_with(url);
+        let reddit_client = RedditClient::new_with(url);
         let result = reddit_client.validate_subreddit(subreddit).await;
         assert_eq!(result, true);
         _m.assert();
@@ -187,7 +187,7 @@ mod tests {
             .with_header("content-type", "application/json")
             .create();
 
-        let reddit_client = Client::new_with(url);
+        let reddit_client = RedditClient::new_with(url);
         let result = reddit_client.validate_subreddit(subreddit).await;
         assert_eq!(result, false);
         _m.assert();

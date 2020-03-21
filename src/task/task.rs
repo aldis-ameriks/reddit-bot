@@ -7,9 +7,9 @@ use log::{error, info};
 use num::traits::FromPrimitive;
 use tokio::runtime::Runtime;
 
-use crate::db::client::Client as DbClient;
+use crate::db::client::DbClient;
 use crate::db::models::Subscription;
-use crate::reddit::client::Client as RedditClient;
+use crate::reddit::client::RedditClient;
 use crate::telegram::client::TelegramClient;
 use crate::telegram::types::Message;
 

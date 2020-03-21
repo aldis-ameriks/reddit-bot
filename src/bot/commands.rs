@@ -140,13 +140,15 @@ mod tests {
     use super::*;
 
     use crate::db::test_helpers::{setup_test_db, setup_test_db_with};
+    use crate::telegram::test_helpers::test_helpers::{
+        mock_send_message_called, mock_send_message_not_called,
+    };
     use mockito::{mock, server_url, Matcher};
     use serde_json::json;
     use serial_test::serial;
 
     const TOKEN: &str = "token";
     const USER_ID: &str = "123";
-    const SEND_MESSAGE_RESPONSE: &str = r#"{"ok":true,"result":{"message_id":691,"from":{"id":414141,"is_bot":true,"first_name":"Bot","username":"Bot"},"chat":{"id":123,"first_name":"Name","username":"username","type":"private"},"date":1581200384,"text":"This is a test message"}}"#;
 
     #[tokio::test]
     #[serial]
@@ -157,14 +159,7 @@ mod tests {
             text: HELP_TEXT,
             ..Default::default()
         };
-        let _m = mock("POST", format!("/bot{}/sendMessage", TOKEN).as_str())
-            .match_body(Matcher::Json(json!(message)))
-            .with_status(200)
-            .with_body(SEND_MESSAGE_RESPONSE)
-            .with_header("content-type", "application/json")
-            .expect(1)
-            .create();
-
+        let _m = mock_send_message_called(TOKEN, &message);
         let telegram_client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
         let db_client = setup_test_db();
 
@@ -185,15 +180,7 @@ mod tests {
             text: HELP_TEXT,
             ..Default::default()
         };
-
-        let _m = mock("POST", format!("/bot{}/sendMessage", TOKEN).as_str())
-            .match_body(Matcher::Json(json!(message)))
-            .with_status(200)
-            .with_body(SEND_MESSAGE_RESPONSE)
-            .with_header("content-type", "application/json")
-            .expect(1)
-            .create();
-
+        let _m = mock_send_message_called(TOKEN, &message);
         let telegram_client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
         let db_client = setup_test_db();
         db_client.create_user(USER_ID).unwrap();
@@ -214,12 +201,10 @@ mod tests {
     #[serial]
     async fn start_error() {
         let url = &server_url();
-        let _m = mock("POST", format!("/bot{}/sendMessage", TOKEN).as_str())
-            .expect(0)
-            .create();
-
+        let _m = mock_send_message_not_called(TOKEN);
         let telegram_client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
         let db_client = setup_test_db_with(false);
+
         let result = start(&telegram_client, &db_client, USER_ID).await;
         assert!(result.is_err());
         _m.assert();
@@ -234,15 +219,7 @@ mod tests {
             text: "User and subscriptions deleted",
             ..Default::default()
         };
-
-        let _m = mock("POST", format!("/bot{}/sendMessage", TOKEN).as_str())
-            .match_body(Matcher::Json(json!(message)))
-            .with_status(200)
-            .with_body(SEND_MESSAGE_RESPONSE)
-            .with_header("content-type", "application/json")
-            .expect(1)
-            .create();
-
+        let _m = mock_send_message_called(TOKEN, &message);
         let telegram_client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
         let db_client = setup_test_db();
         db_client.create_user(USER_ID).unwrap();
@@ -261,10 +238,7 @@ mod tests {
     #[serial]
     async fn stop_error() {
         let url = &server_url();
-        let _m = mock("POST", format!("/bot{}/sendMessage", TOKEN).as_str())
-            .expect(0)
-            .create();
-
+        let _m = mock_send_message_not_called(TOKEN);
         let telegram_client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
         let db_client = setup_test_db_with(false);
 
@@ -282,15 +256,7 @@ mod tests {
             text: "Type the name of subreddit you want to subscribe to",
             ..Default::default()
         };
-
-        let _m = mock("POST", format!("/bot{}/sendMessage", TOKEN).as_str())
-            .match_body(Matcher::Json(json!(message)))
-            .with_status(200)
-            .with_body(SEND_MESSAGE_RESPONSE)
-            .with_header("content-type", "application/json")
-            .expect(1)
-            .create();
-
+        let _m = mock_send_message_called(TOKEN, &message);
         let db_client = setup_test_db();
         let reddit_client = RedditClient::new_with(url);
         let telegram_client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
@@ -310,15 +276,7 @@ mod tests {
             text: "You are currently subscribed to:\nrust\n",
             ..Default::default()
         };
-
-        let _m = mock("POST", format!("/bot{}/sendMessage", TOKEN).as_str())
-            .match_body(Matcher::Json(json!(message)))
-            .with_status(200)
-            .with_body(SEND_MESSAGE_RESPONSE)
-            .with_header("content-type", "application/json")
-            .expect(1)
-            .create();
-
+        let _m = mock_send_message_called(TOKEN, &message);
         let db_client = setup_test_db();
         db_client.create_user(USER_ID).unwrap();
         db_client.subscribe(USER_ID, "rust", 1, 1).unwrap();
@@ -339,15 +297,7 @@ mod tests {
             text: "You have no subscriptions",
             ..Default::default()
         };
-
-        let _m = mock("POST", format!("/bot{}/sendMessage", TOKEN).as_str())
-            .match_body(Matcher::Json(json!(message)))
-            .with_status(200)
-            .with_body(SEND_MESSAGE_RESPONSE)
-            .with_header("content-type", "application/json")
-            .expect(1)
-            .create();
-
+        let _m = mock_send_message_called(TOKEN, &message);
         let db_client = setup_test_db();
         db_client.create_user(USER_ID).unwrap();
         let telegram_client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
@@ -362,10 +312,7 @@ mod tests {
     #[serial]
     async fn subscriptions_error() {
         let url = &server_url();
-        let _m = mock("POST", format!("/bot{}/sendMessage", TOKEN).as_str())
-            .expect(0)
-            .create();
-
+        let _m = mock_send_message_not_called(TOKEN);
         let db_client = setup_test_db_with(false);
         let telegram_client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
 
@@ -383,14 +330,7 @@ mod tests {
             text: HELP_TEXT,
             ..Default::default()
         };
-        let _m = mock("POST", format!("/bot{}/sendMessage", TOKEN).as_str())
-            .match_body(Matcher::Json(json!(message)))
-            .with_status(200)
-            .with_body(SEND_MESSAGE_RESPONSE)
-            .with_header("content-type", "application/json")
-            .expect(1)
-            .create();
-
+        let _m = mock_send_message_called(TOKEN, &message);
         let telegram_client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
 
         help(&telegram_client, USER_ID).await.unwrap();

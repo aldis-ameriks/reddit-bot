@@ -113,6 +113,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+    use crate::telegram::test_helpers::test_helpers::mock_send_message_called;
 
     const TOKEN: &str = "token";
 
@@ -125,7 +126,6 @@ mod tests {
     #[tokio::test]
     async fn send_message_success() {
         let url = &server_url();
-        let resp = r#"{"ok":true,"result":{"message_id":691,"from":{"id":414141,"is_bot":true,"first_name":"Bot","username":"Bot"},"chat":{"id":123,"first_name":"Name","username":"username","type":"private"},"date":1581200384,"text":"This is a test message"}}"#;
         let inline_keyboard = vec![vec![InlineKeyboardButton {
             text: "test".to_string(),
             callback_data: "callback_data".to_string(),
@@ -140,15 +140,9 @@ mod tests {
             disable_web_page_preview: false,
             reply_markup: Some(&reply_markup),
         };
-
-        let _m = mock("POST", format!("/bot{}/sendMessage", TOKEN).as_str())
-            .match_body(Matcher::Json(json!(message)))
-            .with_status(200)
-            .with_body(resp)
-            .with_header("content-type", "application/json")
-            .create();
-
+        let _m = mock_send_message_called(TOKEN, &message);
         let client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
+
         let result = client.send_message(&message).await.unwrap();
         assert_eq!(result, "691");
         _m.assert();

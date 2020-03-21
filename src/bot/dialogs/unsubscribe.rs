@@ -7,7 +7,8 @@ use strum_macros::{Display, EnumString};
 use crate::bot::dialogs::Dialog;
 use crate::db::client::DbClient;
 use crate::telegram::client::TelegramClient;
-use crate::telegram::types::{InlineKeyboardButton, InlineKeyboardMarkup, Message, ReplyMarkup};
+use crate::telegram::helpers::build_inline_keyboard_markup;
+use crate::telegram::types::{InlineKeyboardButton, Message, ReplyMarkup};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize, Display, EnumString)]
 pub enum Unsubscribe {
@@ -55,24 +56,7 @@ impl Dialog<Unsubscribe> {
                         })
                         .collect::<Vec<InlineKeyboardButton>>();
 
-                    let mut rows: Vec<Vec<InlineKeyboardButton>> = vec![];
-                    let mut row: Vec<InlineKeyboardButton> = vec![];
-                    let mut buttons_iterator = buttons.into_iter();
-                    while let Some(button) = buttons_iterator.next() {
-                        row.push(button);
-                        if row.len() == 2 {
-                            rows.push(row.clone());
-                            row = vec![];
-                        }
-                    }
-
-                    if row.len() > 0 {
-                        rows.push(row);
-                    }
-
-                    let markup = InlineKeyboardMarkup {
-                        inline_keyboard: rows,
-                    };
+                    let markup = build_inline_keyboard_markup(buttons, 2);
 
                     telegram_client
                         .send_message(&Message {

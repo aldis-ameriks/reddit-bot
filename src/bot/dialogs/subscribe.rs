@@ -14,7 +14,8 @@ use crate::db::client::DbClient;
 use crate::reddit::client::RedditClient;
 use crate::task::task::process_subscription;
 use crate::telegram::client::TelegramClient;
-use crate::telegram::types::{InlineKeyboardButton, InlineKeyboardMarkup, Message, ReplyMarkup};
+use crate::telegram::helpers::build_inline_keyboard_markup;
+use crate::telegram::types::{InlineKeyboardButton, Message, ReplyMarkup};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Serialize, Deserialize, Display, EnumString)]
 pub enum Subscribe {
@@ -65,36 +66,17 @@ impl Dialog<Subscribe> {
                             ..Default::default()
                         })
                         .await?;
-                    // TODO: return error
                     return Ok(());
                 }
 
-                // TODO: allow specifying multiple subreddits
-                // TODO: extract helper function for building inline options
                 let buttons = (0..7)
                     .map(|weekday| InlineKeyboardButton {
                         text: format!("{}", Weekday::from_u8(weekday).unwrap()),
                         callback_data: format!("{}", weekday).clone(),
                     })
                     .collect::<Vec<InlineKeyboardButton>>();
-                let mut row: Vec<InlineKeyboardButton> = vec![];
-                let mut rows: Vec<Vec<InlineKeyboardButton>> = vec![];
-                let mut buttons_iterator = buttons.into_iter();
-                while let Some(button) = buttons_iterator.next() {
-                    row.push(button);
-                    if row.len() == 2 {
-                        rows.push(row.clone());
-                        row = vec![];
-                    }
-                }
 
-                if row.len() > 0 {
-                    rows.push(row);
-                }
-
-                let markup = InlineKeyboardMarkup {
-                    inline_keyboard: rows,
-                };
+                let markup = build_inline_keyboard_markup(buttons, 2);
 
                 telegram_client
                     .send_message(&Message {
@@ -109,7 +91,6 @@ impl Dialog<Subscribe> {
                 db.insert_or_update_dialog(&self.clone().into()).ok();
             }
             Subscribe::Weekday => {
-                // TODO: extract helper function for building inline options
                 let buttons = (0..24)
                     .map(|hour| InlineKeyboardButton {
                         text: format!("{}:00", hour),
@@ -117,24 +98,7 @@ impl Dialog<Subscribe> {
                     })
                     .collect::<Vec<InlineKeyboardButton>>();
 
-                let mut row: Vec<InlineKeyboardButton> = vec![];
-                let mut rows: Vec<Vec<InlineKeyboardButton>> = vec![];
-                let mut buttons_iterator = buttons.into_iter();
-                while let Some(button) = buttons_iterator.next() {
-                    row.push(button);
-                    if row.len() == 3 {
-                        rows.push(row.clone());
-                        row = vec![];
-                    }
-                }
-
-                if row.len() > 0 {
-                    rows.push(row);
-                }
-
-                let markup = InlineKeyboardMarkup {
-                    inline_keyboard: rows,
-                };
+                let markup = build_inline_keyboard_markup(buttons, 4);
 
                 telegram_client
                     .send_message(&Message {

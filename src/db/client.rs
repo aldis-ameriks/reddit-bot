@@ -10,7 +10,9 @@ use super::schema;
 
 embed_migrations!();
 
-pub struct DbClient(SqliteConnection);
+pub struct DbClient {
+    pub conn: SqliteConnection,
+}
 
 impl DbClient {
     pub fn new(url: &str) -> DbClient {
@@ -20,7 +22,7 @@ impl DbClient {
 
         // TODO: run migration on applications startup
         embedded_migrations::run(&conn).unwrap();
-        DbClient(conn)
+        DbClient { conn }
     }
 
     pub fn create_user(&self, id: &str) -> Result<User, Error> {
@@ -36,7 +38,7 @@ impl DbClient {
 
         match diesel::insert_into(users::table)
             .values(&new_user)
-            .execute(&self.0)
+            .execute(&self.conn)
         {
             Ok(_) => Ok(new_user),
             Err(err) => {
@@ -48,7 +50,7 @@ impl DbClient {
 
     pub fn delete_user(&self, id: &str) -> Result<(), Error> {
         use schema::users::dsl;
-        match diesel::delete(dsl::users.filter(dsl::id.eq(id))).execute(&self.0) {
+        match diesel::delete(dsl::users.filter(dsl::id.eq(id))).execute(&self.conn) {
             Ok(_) => Ok(()),
             Err(err) => {
                 error!("failed to delete user: {}", err);
@@ -60,7 +62,7 @@ impl DbClient {
     #[allow(dead_code)]
     pub fn get_users(&self) -> Result<Vec<User>, Error> {
         use schema::users::dsl;
-        match dsl::users.load::<User>(&self.0) {
+        match dsl::users.load::<User>(&self.conn) {
             Ok(result) => Ok(result),
             Err(err) => {
                 error!("failed to get users: {}", err);
@@ -88,14 +90,14 @@ impl DbClient {
             last_sent_at: Some(Utc::now().to_rfc3339()),
         };
 
-        match self.0.transaction::<_, Error, _>(|| {
+        match self.conn.transaction::<_, Error, _>(|| {
             diesel::insert_into(dsl::users_subscriptions)
                 .values(&new_subscription)
-                .execute(&self.0)?;
+                .execute(&self.conn)?;
 
             dsl::users_subscriptions
                 .order(dsl::id.desc())
-                .first::<Subscription>(&self.0)
+                .first::<Subscription>(&self.conn)
         }) {
             Ok(subscription) => Ok(subscription),
             Err(err) => {
@@ -112,7 +114,7 @@ impl DbClient {
 
         match diesel::update(dsl::users_subscriptions.find(id))
             .set(dsl::last_sent_at.eq(Utc::now().to_rfc3339()))
-            .execute(&self.0)
+            .execute(&self.conn)
         {
             Ok(_) => Ok(()),
             Err(err) => {
@@ -133,7 +135,7 @@ impl DbClient {
             dsl::users_subscriptions
                 .filter(dsl::user_id.eq(user_id).and(dsl::subreddit.eq(subreddit))),
         )
-        .execute(&self.0)
+        .execute(&self.conn)
         {
             Ok(_) => Ok(()),
             Err(err) => {
@@ -145,7 +147,7 @@ impl DbClient {
 
     pub fn get_subscriptions(&self) -> Result<Vec<Subscription>, Error> {
         use schema::users_subscriptions::dsl;
-        match dsl::users_subscriptions.load::<Subscription>(&self.0) {
+        match dsl::users_subscriptions.load::<Subscription>(&self.conn) {
             Ok(result) => Ok(result),
             Err(err) => {
                 error!("failed to get subscriptions: {}", err);
@@ -158,7 +160,7 @@ impl DbClient {
         use schema::users_subscriptions::dsl;
         match dsl::users_subscriptions
             .filter(dsl::user_id.eq(user_id))
-            .load::<Subscription>(&self.0)
+            .load::<Subscription>(&self.conn)
         {
             Ok(result) => Ok(result),
             Err(err) => {
@@ -172,7 +174,7 @@ impl DbClient {
         use schema::dialogs::dsl;
         match dsl::dialogs
             .filter(dsl::user_id.eq(user_id))
-            .first::<DialogEntity>(&self.0)
+            .first::<DialogEntity>(&self.conn)
         {
             Ok(result) => Ok(result),
             Err(err) => {
@@ -188,7 +190,7 @@ impl DbClient {
 
         match diesel::replace_into(dsl::dialogs)
             .values(vec![dialog])
-            .execute(&self.0)
+            .execute(&self.conn)
         {
             Ok(_) => Ok(()),
             Err(err) => {
@@ -201,25 +203,17 @@ impl DbClient {
 
 #[cfg(test)]
 mod test {
-    use diesel_migrations::run_pending_migrations;
     use serial_test::serial;
 
     use super::*;
+    use crate::db::test_helpers::setup_test_db;
 
     const USER_ID: &str = "1";
-
-    pub fn setup() -> DbClient {
-        std::fs::create_dir(".tmp").err();
-        std::fs::remove_file(".tmp/test.db").err();
-        let client = DbClient::new("file:.tmp/test.db");
-        run_pending_migrations(&client.0).unwrap();
-        client
-    }
 
     #[test]
     #[serial]
     fn users() {
-        let client = setup();
+        let client = setup_test_db();
         let result = client.get_users().unwrap();
         assert_eq!(result.len(), 0);
 
@@ -239,7 +233,7 @@ mod test {
     #[test]
     #[serial]
     fn user_subscriptions() {
-        let client = setup();
+        let client = setup_test_db();
         client.create_user(USER_ID).unwrap();
 
         let result = client.get_user_subscriptions(USER_ID).unwrap();
@@ -280,7 +274,7 @@ mod test {
     fn subscriptions() {
         const SECOND_USER_ID: &str = "2";
 
-        let client = setup();
+        let client = setup_test_db();
         client.create_user(USER_ID).unwrap();
         client.create_user(SECOND_USER_ID).unwrap();
 
@@ -303,7 +297,7 @@ mod test {
     #[test]
     #[serial]
     fn update_last_sent() {
-        let client = setup();
+        let client = setup_test_db();
         client.create_user(USER_ID).unwrap();
 
         let result = client.get_user_subscriptions(USER_ID).unwrap();
@@ -325,7 +319,7 @@ mod test {
     #[test]
     #[serial]
     fn dialogs() {
-        let client = setup();
+        let client = setup_test_db();
         client.create_user(USER_ID).unwrap();
 
         let result = client.get_users_dialog(USER_ID);

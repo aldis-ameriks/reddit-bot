@@ -6,7 +6,7 @@ const SEND_MESSAGE_SUCCESS: &str = r#"{"ok":true,"result":{"message_id":691,"fro
 
 use mockito::{mock, Matcher, Mock};
 
-pub fn mock_send_message_called(token: &str, message: &Message) -> Mock {
+pub fn mock_send_message_success(token: &str, message: &Message) -> Mock {
     mock("POST", format!("/bot{}/sendMessage", token).as_str())
         .match_body(Matcher::Json(json!(message)))
         .with_status(200)

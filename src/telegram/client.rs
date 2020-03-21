@@ -113,7 +113,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::telegram::test_helpers::mock_send_message_called;
+    use crate::telegram::test_helpers::mock_send_message_success;
 
     const TOKEN: &str = "token";
 
@@ -140,7 +140,7 @@ mod tests {
             disable_web_page_preview: false,
             reply_markup: Some(&reply_markup),
         };
-        let _m = mock_send_message_called(TOKEN, &message);
+        let _m = mock_send_message_success(TOKEN, &message);
         let client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
 
         let result = client.send_message(&message).await.unwrap();

@@ -90,3 +90,53 @@ pub async fn process_subscription(
         error!("failed to fetch reddit posts");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::test_helpers::setup_test_db;
+    use crate::reddit::test_helpers::mock_reddit_success;
+    use crate::telegram::test_helpers::mock_send_message_success;
+    use mockito::server_url;
+    use serial_test::serial;
+
+    const USER_ID: &str = "123";
+    const TOKEN: &str = "token";
+
+    #[tokio::test]
+    #[serial]
+    async fn process_subscription_success() {
+        let url = &server_url();
+        let subreddit = "rust";
+        let expected_message = Message {
+            chat_id: USER_ID,
+            text: &format!("Weekly popular posts from: \"rust\"\n\nA half-hour to learn Rust\n{}/r/rust/comments/fbenua/a_halfhour_to_learn_rust/\n\n", url),
+            disable_web_page_preview: true,
+            ..Default::default()
+        };
+        let _m = mock_send_message_success(TOKEN, &expected_message);
+        let _m2 = mock_reddit_success(subreddit);
+
+        let telegram_client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
+        let reddit_client = RedditClient::new_with(url);
+        let db_client = setup_test_db();
+
+        let user_subscription = Subscription {
+            id: 123,
+            user_id: USER_ID.to_string(),
+            subreddit: subreddit.to_string(),
+            ..Default::default()
+        };
+
+        process_subscription(
+            &db_client,
+            &telegram_client,
+            &reddit_client,
+            &user_subscription,
+        )
+        .await;
+
+        _m.assert();
+        _m2.assert();
+    }
+}

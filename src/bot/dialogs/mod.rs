@@ -1,8 +1,9 @@
-use crate::db::models::DialogEntity;
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use strum_macros::{Display, EnumString};
+
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+
+use crate::db::models::DialogEntity;
 
 pub use self::subscribe::Subscribe;
 pub use self::unsubscribe::Unsubscribe;
@@ -66,7 +67,7 @@ mod tests {
                 user_id: "123".to_string(),
                 command: "/subscribe".to_string(),
                 step: "Start".to_string(),
-                data: "{}".to_string()
+                data: "{}".to_string(),
             }
         );
         let mut dialog_converted: Dialog<Subscribe> = command.into();
@@ -84,7 +85,7 @@ mod tests {
                 user_id: "123".to_string(),
                 command: "/subscribe".to_string(),
                 step: "Subreddit".to_string(),
-                data: r#"{"Start":"payload"}"#.to_string()
+                data: r#"{"Start":"payload"}"#.to_string(),
             }
         );
 

@@ -168,19 +168,13 @@ impl DbClient {
         }
     }
 
-    pub fn get_users_dialog(&self, user_id: &str) -> Result<Option<DialogEntity>, Error> {
+    pub fn get_users_dialog(&self, user_id: &str) -> Result<DialogEntity, Error> {
         use schema::dialogs::dsl;
         match dsl::dialogs
             .filter(dsl::user_id.eq(user_id))
-            .load::<DialogEntity>(&self.0)
+            .first::<DialogEntity>(&self.0)
         {
-            Ok(result) => {
-                if let Some(result) = result.get(0) {
-                    Ok(Some((*result).clone()))
-                } else {
-                    Ok(None)
-                }
-            }
+            Ok(result) => Ok(result),
             Err(err) => {
                 error!("failed to get users dialog: {}", err);
                 Err(err)
@@ -334,8 +328,8 @@ mod test {
         let client = setup();
         client.create_user(USER_ID).unwrap();
 
-        let result = client.get_users_dialog(USER_ID).unwrap();
-        assert!(result.is_none());
+        let result = client.get_users_dialog(USER_ID);
+        assert!(result.is_err());
 
         let dialog = DialogEntity {
             user_id: USER_ID.to_string(),
@@ -345,7 +339,7 @@ mod test {
         };
 
         client.insert_or_update_dialog(&dialog).unwrap();
-        let result = client.get_users_dialog(USER_ID).unwrap().unwrap();
+        let result = client.get_users_dialog(USER_ID).unwrap();
         assert_eq!(result, dialog);
 
         let dialog2 = DialogEntity {
@@ -353,7 +347,7 @@ mod test {
             ..dialog
         };
         client.insert_or_update_dialog(&dialog2).unwrap();
-        let result = client.get_users_dialog(USER_ID).unwrap().unwrap();
+        let result = client.get_users_dialog(USER_ID).unwrap();
         assert_eq!(result, dialog2);
     }
 }

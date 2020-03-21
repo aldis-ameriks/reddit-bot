@@ -1,16 +1,15 @@
 use std::error::Error;
 
-use chrono::Weekday;
 use futures::StreamExt;
 use log::{error, info, warn};
-use num::traits::FromPrimitive;
 use telegram_bot::{Api, MessageKind, UpdateKind};
 
 use crate::bot::commands::{help, start, stop, subscribe, subscriptions, unsubscribe};
+use crate::bot::dialogs::{Dialog, Subscribe, Unsubscribe};
 use crate::db::client::DbClient;
 use crate::reddit::client::RedditClient;
 use crate::telegram::client::TelegramClient;
-use crate::telegram::types::{InlineKeyboardButton, InlineKeyboardMarkup, Message, ReplyMarkup};
+use crate::telegram::types::Message;
 
 pub async fn init_bot(token: &str, database_url: &str) {
     let db = DbClient::new(&database_url);
@@ -59,154 +58,35 @@ async fn handle_message(
 ) -> Result<(), Box<dyn Error>> {
     info!("received message from: {}, message: {}", user_id, payload);
 
+    // TODO: Extract commands as enum
     match payload.as_ref() {
         "/start" => start(&telegram_client, &db, &user_id).await?,
         "/stop" => stop(&telegram_client, &db, &user_id).await?,
-        "/subscribe" => {
-            subscribe(
-                &telegram_client,
-                &db,
-                &reddit_client,
-                &user_id,
-                None,
-                None,
-                None,
-            )
-            .await?
-        }
-        "/unsubscribe" => unsubscribe(&telegram_client, &db, &user_id, None).await?,
+        "/subscribe" => subscribe(&telegram_client, &db, &reddit_client, &user_id).await?,
+        "/unsubscribe" => unsubscribe(&telegram_client, &db, &user_id).await?,
         "/subscriptions" => subscriptions(&telegram_client, &db, &user_id).await?,
         "/help" => help(&telegram_client, &user_id).await?,
         _ => {
-            if let Ok(last_command) = db.get_users_dialog(&user_id) {
-                if let Some(mut last_command) = last_command {
-                    match last_command.command.as_str() {
-                        // TODO: encapsulate step logic inside dialog struct
-                        "/subscribe" => {
-                            match last_command.step.as_str() {
-                                "Start" => {
-                                    // TODO: validate subreddit
-                                    // TODO: allow specifying multiple subreddits
-                                    // TODO: extract helper function for building inline options
-                                    let buttons = (0..7)
-                                        .map(|weekday| InlineKeyboardButton {
-                                            text: format!("{}", Weekday::from_u8(weekday).unwrap()),
-                                            callback_data: format!("{}", weekday).clone(),
-                                        })
-                                        .collect::<Vec<InlineKeyboardButton>>();
-                                    let mut row: Vec<InlineKeyboardButton> = vec![];
-                                    let mut rows: Vec<Vec<InlineKeyboardButton>> = vec![];
-                                    let mut buttons_iterator = buttons.into_iter();
-                                    while let Some(button) = buttons_iterator.next() {
-                                        row.push(button);
-                                        if row.len() == 2 {
-                                            rows.push(row.clone());
-                                            row = vec![];
-                                        }
-                                    }
-
-                                    if row.len() > 0 {
-                                        rows.push(row);
-                                    }
-
-                                    let markup = InlineKeyboardMarkup {
-                                        inline_keyboard: rows,
-                                    };
-
-                                    telegram_client
-                                        .send_message(&Message {
-                                            chat_id: &user_id,
-                                            text: "On which day do you want to receive the posts?",
-                                            reply_markup: Some(&ReplyMarkup::InlineKeyboardMarkup(
-                                                markup,
-                                            )),
-                                            ..Default::default()
-                                        })
-                                        .await?;
-
-                                    last_command.step = "Subreddit".to_string();
-                                    last_command.data = payload;
-                                    db.insert_or_update_dialog(&last_command).ok();
-                                }
-                                "Subreddit" => {
-                                    // TODO: extract helper function for building inline options
-                                    let buttons = (0..24)
-                                        .map(|hour| InlineKeyboardButton {
-                                            text: format!("{}:00", hour),
-                                            callback_data: format!("{}", hour),
-                                        })
-                                        .collect::<Vec<InlineKeyboardButton>>();
-
-                                    let mut row: Vec<InlineKeyboardButton> = vec![];
-                                    let mut rows: Vec<Vec<InlineKeyboardButton>> = vec![];
-                                    let mut buttons_iterator = buttons.into_iter();
-                                    while let Some(button) = buttons_iterator.next() {
-                                        row.push(button);
-                                        if row.len() == 3 {
-                                            rows.push(row.clone());
-                                            row = vec![];
-                                        }
-                                    }
-
-                                    if row.len() > 0 {
-                                        rows.push(row);
-                                    }
-
-                                    let markup = InlineKeyboardMarkup {
-                                        inline_keyboard: rows,
-                                    };
-
-                                    telegram_client
-                                        .send_message(&Message {
-                                            chat_id: &user_id,
-                                            text: "At what time? (UTC)",
-                                            reply_markup: Some(&ReplyMarkup::InlineKeyboardMarkup(
-                                                markup,
-                                            )),
-                                            ..Default::default()
-                                        })
-                                        .await?;
-
-                                    last_command.step = "Weekday".to_string();
-                                    last_command.data =
-                                        format!("{};{}", last_command.data, payload);
-                                    db.insert_or_update_dialog(&last_command).ok();
-                                }
-                                "Weekday" => {
-                                    let prev_data =
-                                        last_command.data.split(";").collect::<Vec<&str>>();
-                                    let subreddit = prev_data.get(0).unwrap();
-                                    let day = prev_data.get(1).unwrap().parse::<i32>().unwrap_or(0);
-                                    let time = payload.parse::<i32>().unwrap_or(12);
-
-                                    subscribe(
-                                        &telegram_client,
-                                        &db,
-                                        &reddit_client,
-                                        &user_id,
-                                        Some(&subreddit),
-                                        Some(day),
-                                        Some(time),
-                                    )
-                                    .await?;
-                                }
-                                _ => {}
-                            }
-                            return Ok(());
-                        }
-                        "/unsubscribe" => {
-                            if last_command.step.as_str() == "Start" {
-                                unsubscribe(&telegram_client, &db, &user_id, Some(&payload))
-                                    .await?;
-                                last_command.step = "Subreddit".to_string();
-                                db.insert_or_update_dialog(&last_command).ok();
-                                return Ok(());
-                            }
-                        }
-                        _ => {}
+            if let Ok(dialog) = db.get_users_dialog(&user_id) {
+                match dialog.command.as_str() {
+                    "/subscribe" => {
+                        let mut dialog: Dialog<Subscribe> = Dialog::from(dialog);
+                        dialog
+                            .handle_current_step(&telegram_client, &db, &reddit_client, &payload)
+                            .await?;
+                        return Ok(());
                     }
+                    "/unsubscribe" => {
+                        let mut dialog: Dialog<Unsubscribe> = Dialog::from(dialog);
+                        dialog
+                            .handle_current_step(&telegram_client, &db, &payload)
+                            .await?;
+                        return Ok(());
+                    }
+                    _ => {}
                 }
             }
+
             telegram_client
                 .send_message(&Message {
                     chat_id: &user_id,

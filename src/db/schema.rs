@@ -28,8 +28,4 @@ table! {
 joinable!(dialogs -> users (user_id));
 joinable!(users_subscriptions -> users (user_id));
 
-allow_tables_to_appear_in_same_query!(
-    dialogs,
-    users,
-    users_subscriptions,
-);
+allow_tables_to_appear_in_same_query!(dialogs, users, users_subscriptions,);

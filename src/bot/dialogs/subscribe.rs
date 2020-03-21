@@ -49,7 +49,7 @@ impl Dialog<Subscribe> {
                 telegram_client
                     .send_message(&Message {
                         chat_id: &self.user_id,
-                        text: "Type the name of subreddit you want to subscribe to.",
+                        text: "Type the name of subreddit you want to subscribe to",
                         ..Default::default()
                     })
                     .await?;

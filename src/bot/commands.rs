@@ -140,11 +140,8 @@ mod tests {
     use super::*;
 
     use crate::db::test_helpers::{setup_test_db, setup_test_db_with};
-    use crate::telegram::test_helpers::test_helpers::{
-        mock_send_message_called, mock_send_message_not_called,
-    };
-    use mockito::{mock, server_url, Matcher};
-    use serde_json::json;
+    use crate::telegram::test_helpers::{mock_send_message_called, mock_send_message_not_called};
+    use mockito::server_url;
     use serial_test::serial;
 
     const TOKEN: &str = "token";

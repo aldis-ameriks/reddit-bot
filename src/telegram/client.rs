@@ -113,7 +113,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::telegram::test_helpers::test_helpers::mock_send_message_called;
+    use crate::telegram::test_helpers::mock_send_message_called;
 
     const TOKEN: &str = "token";
 

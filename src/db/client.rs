@@ -3,7 +3,7 @@ use diesel::prelude::*;
 use diesel::result::Error;
 use log::{error, info};
 
-use crate::db::models::Dialog;
+use crate::db::models::DialogEntity;
 
 use super::models::{NewSubscription, Subscription, User};
 use super::schema;
@@ -168,11 +168,11 @@ impl Client {
         }
     }
 
-    pub fn get_users_dialog(&self, user_id: &str) -> Result<Option<Dialog>, Error> {
+    pub fn get_users_dialog(&self, user_id: &str) -> Result<Option<DialogEntity>, Error> {
         use schema::dialogs::dsl;
         match dsl::dialogs
             .filter(dsl::user_id.eq(user_id))
-            .load::<Dialog>(&self.0)
+            .load::<DialogEntity>(&self.0)
         {
             Ok(result) => {
                 if let Some(result) = result.get(0) {
@@ -188,7 +188,7 @@ impl Client {
         }
     }
 
-    pub fn insert_or_update_dialog(&self, dialog: &Dialog) -> Result<(), Error> {
+    pub fn insert_or_update_dialog(&self, dialog: &DialogEntity) -> Result<(), Error> {
         use schema::dialogs::dsl;
         info!("inserting or updating dialog: {:?}", dialog);
 
@@ -337,7 +337,7 @@ mod test {
         let result = client.get_users_dialog(USER_ID).unwrap();
         assert!(result.is_none());
 
-        let dialog = Dialog {
+        let dialog = DialogEntity {
             user_id: USER_ID.to_string(),
             command: "/subscribe".to_string(),
             step: "One".to_string(),
@@ -348,7 +348,7 @@ mod test {
         let result = client.get_users_dialog(USER_ID).unwrap().unwrap();
         assert_eq!(result, dialog);
 
-        let dialog2 = Dialog {
+        let dialog2 = DialogEntity {
             step: "Two".to_string(),
             ..dialog
         };

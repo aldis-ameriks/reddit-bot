@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use strum_macros::{Display, EnumString};
 
 use crate::bot::dialogs::Dialog;
-use crate::db::models::Dialog as DialogEntity;
+use crate::db::models::DialogEntity;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize, Display, EnumString)]
 pub enum Unsubscribe {

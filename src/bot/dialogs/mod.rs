@@ -1,4 +1,4 @@
-use crate::db::models::Dialog as DialogEntity;
+use crate::db::models::DialogEntity;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

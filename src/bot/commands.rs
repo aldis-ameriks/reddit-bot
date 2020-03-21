@@ -5,7 +5,7 @@ use log::error;
 use num::traits::FromPrimitive;
 
 use crate::db::client::Client as DbClient;
-use crate::db::models::Dialog;
+use crate::db::models::DialogEntity;
 use crate::reddit::client::Client as RedditClient;
 use crate::task::task::process_subscription;
 use crate::telegram::client::TelegramClient;
@@ -73,7 +73,7 @@ pub async fn subscribe(
             })
             .await?;
 
-        let command = Dialog {
+        let command = DialogEntity {
             user_id: user_id.to_string(),
             command: "/subscribe".to_string(),
             step: "Start".to_string(),
@@ -187,7 +187,7 @@ pub async fn unsubscribe(
                 })
                 .await?;
 
-            let command = Dialog {
+            let command = DialogEntity {
                 user_id: user_id.to_string(),
                 command: "/unsubscribe".to_string(),
                 step: "Start".to_string(),

@@ -31,7 +31,7 @@ pub struct NewSubscription<'a> {
 
 #[derive(Debug, Queryable, Insertable, Clone, PartialEq)]
 #[table_name = "dialogs"]
-pub struct Dialog {
+pub struct DialogEntity {
     pub user_id: String,
     pub command: String,
     pub step: String,

@@ -1,5 +1,5 @@
 # Reddit Weekly Bot
-> Highly limited and opinionated bot that allows subscribing to weekly popular posts in subreddits of your choice.
+> Highly limited bot that allows subscribing to weekly popular posts in subreddits of your choice.
 
 ![build-test-publish](https://github.com/aldis-ameriks/reddit-bot/workflows/build-test-publish/badge.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)

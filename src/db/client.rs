@@ -76,7 +76,10 @@ impl DbClient {
     ) -> Result<Subscription, Error> {
         use schema::users_subscriptions::dsl;
 
-        info!("subscribing user_id: {}, subreddit: {}", user_id, subreddit);
+        info!(
+            "subscribing user_id: {}, subreddit: {}, send_on: {}, send_at: {} ",
+            user_id, subreddit, send_on, send_at
+        );
 
         let new_subscription = NewSubscription {
             user_id,

@@ -1,5 +1,3 @@
-use std::error::Error;
-
 use reqwest::{Client, Response};
 use serde_json::{from_str, Value};
 
@@ -80,7 +78,7 @@ impl TelegramClient {
     pub async fn edit_message_text<'a>(
         &self,
         message: &EditMessage<'a>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), TelegramError> {
         let url = format!("{}/bot{}/editMessageText", self.domain, self.token);
         let resp: Response = Client::new().post(&url).json(&message).send().await?;
 
@@ -95,7 +93,7 @@ impl TelegramClient {
     pub async fn edit_message_image<'a>(
         &self,
         edit_image: &EditImage<'a>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), TelegramError> {
         let url = format!("{}/bot{}/editMessageMedia", self.domain, self.token);
         let resp: Response = Client::new().post(&url).json(&edit_image).send().await?;
 
@@ -112,8 +110,9 @@ mod tests {
     use mockito::{mock, server_url, Matcher};
     use serde_json::json;
 
-    use super::*;
     use crate::telegram::test_helpers::mock_send_message_success;
+
+    use super::*;
 
     const TOKEN: &str = "token";
 

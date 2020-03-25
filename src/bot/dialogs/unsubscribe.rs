@@ -1,10 +1,10 @@
 use std::collections::HashMap;
-use std::error::Error;
 
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumString};
 
 use crate::bot::dialogs::Dialog;
+use crate::bot::error::BotError;
 use crate::db::client::DbClient;
 use crate::telegram::client::TelegramClient;
 use crate::telegram::helpers::build_inline_keyboard_markup;
@@ -31,7 +31,7 @@ impl Dialog<Unsubscribe> {
         telegram_client: &TelegramClient,
         db: &DbClient,
         payload: &str,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), BotError> {
         self.data.insert(self.current_step, payload.to_string());
 
         match self.current_step {
@@ -58,6 +58,9 @@ impl Dialog<Unsubscribe> {
 
                     let markup = build_inline_keyboard_markup(buttons, 2);
 
+                    self.current_step = Unsubscribe::Subreddit;
+                    db.insert_or_update_dialog(&self.clone().into())?;
+
                     telegram_client
                         .send_message(&Message {
                             chat_id: &self.user_id,
@@ -66,9 +69,6 @@ impl Dialog<Unsubscribe> {
                             ..Default::default()
                         })
                         .await?;
-
-                    self.current_step = Unsubscribe::Subreddit;
-                    db.insert_or_update_dialog(&self.clone().into()).ok();
                 }
             }
             Unsubscribe::Subreddit => {
@@ -82,7 +82,7 @@ impl Dialog<Unsubscribe> {
                         })
                         .await?;
                 }
-                db.delete_dialog(&self.user_id).ok();
+                db.delete_dialog(&self.user_id)?;
             }
         }
         Ok(())

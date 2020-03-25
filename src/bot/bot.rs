@@ -1,11 +1,10 @@
-use std::error::Error;
-
 use futures::StreamExt;
 use log::{error, info, warn};
 use telegram_bot::{Api, MessageKind, UpdateKind};
 
 use crate::bot::commands::{help, start, stop, subscribe, subscriptions, unsubscribe};
 use crate::bot::dialogs::{Dialog, Subscribe, Unsubscribe};
+use crate::bot::error::BotError;
 use crate::db::client::DbClient;
 use crate::reddit::client::RedditClient;
 use crate::telegram::client::TelegramClient;
@@ -73,7 +72,7 @@ async fn handle_message(
     reddit_client: &RedditClient,
     payload: String,
     user_id: String,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), BotError> {
     info!("received message from: {}, message: {}", user_id, payload);
 
     // TODO: Extract commands as enum

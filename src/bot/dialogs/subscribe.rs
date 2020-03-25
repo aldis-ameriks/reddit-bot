@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::error::Error;
 
 use chrono::Weekday;
 use diesel::result::DatabaseErrorKind;
@@ -10,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumString};
 
 use crate::bot::dialogs::Dialog;
+use crate::bot::error::BotError;
 use crate::db::client::DbClient;
 use crate::reddit::client::RedditClient;
 use crate::task::task::process_subscription;
@@ -41,11 +41,13 @@ impl Dialog<Subscribe> {
         db: &DbClient,
         reddit_client: &RedditClient,
         payload: &str,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), BotError> {
         self.data.insert(self.current_step, payload.to_string());
 
         match self.current_step {
             Subscribe::Start => {
+                self.current_step = Subscribe::Subreddit;
+                db.insert_or_update_dialog(&self.clone().into())?;
                 telegram_client
                     .send_message(&Message {
                         chat_id: &self.user_id,
@@ -53,8 +55,6 @@ impl Dialog<Subscribe> {
                         ..Default::default()
                     })
                     .await?;
-                self.current_step = Subscribe::Subreddit;
-                db.insert_or_update_dialog(&self.clone().into()).ok();
             }
             Subscribe::Subreddit => {
                 let subreddit = self.data.get(&Subscribe::Subreddit).unwrap();
@@ -78,6 +78,9 @@ impl Dialog<Subscribe> {
 
                 let markup = build_inline_keyboard_markup(buttons, 2);
 
+                self.current_step = Subscribe::Weekday;
+                db.insert_or_update_dialog(&self.clone().into())?;
+
                 telegram_client
                     .send_message(&Message {
                         chat_id: &self.user_id,
@@ -86,9 +89,6 @@ impl Dialog<Subscribe> {
                         ..Default::default()
                     })
                     .await?;
-
-                self.current_step = Subscribe::Weekday;
-                db.insert_or_update_dialog(&self.clone().into()).ok();
             }
             Subscribe::Weekday => {
                 let buttons = (0..24)
@@ -100,6 +100,9 @@ impl Dialog<Subscribe> {
 
                 let markup = build_inline_keyboard_markup(buttons, 4);
 
+                self.current_step = Subscribe::Time;
+                db.insert_or_update_dialog(&self.clone().into())?;
+
                 telegram_client
                     .send_message(&Message {
                         chat_id: &self.user_id,
@@ -108,9 +111,6 @@ impl Dialog<Subscribe> {
                         ..Default::default()
                     })
                     .await?;
-
-                self.current_step = Subscribe::Time;
-                db.insert_or_update_dialog(&self.clone().into()).ok();
             }
             Subscribe::Time => {
                 let subreddit = self.data.get(&Subscribe::Subreddit).unwrap();
@@ -163,7 +163,7 @@ impl Dialog<Subscribe> {
                         }
                     }
                 }
-                db.delete_dialog(&self.user_id).ok();
+                db.delete_dialog(&self.user_id)?;
             }
         }
         Ok(())

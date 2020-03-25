@@ -1,7 +1,7 @@
 use log::warn;
 use serde_json::Value;
 
-use super::error::Error;
+use super::error::RedditError;
 use super::post::Post;
 
 pub struct RedditClient {
@@ -22,7 +22,7 @@ impl RedditClient {
         }
     }
 
-    pub async fn fetch_posts(&self, subreddit: &str) -> Result<Vec<Post>, Error> {
+    pub async fn fetch_posts(&self, subreddit: &str) -> Result<Vec<Post>, RedditError> {
         let url = format!("{}/r/{}/top.json?limit=10&t=week", self.base_url, subreddit);
         let res = reqwest::get(&url).await?;
         let body = res.text().await?;

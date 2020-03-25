@@ -3,10 +3,10 @@ use std::env;
 use log::{warn, Level};
 
 use dotenv::dotenv;
-use reddit_bot::start;
+use reddit_bot::{start, BotError};
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), BotError> {
     simple_logger::init_with_level(Level::Info).expect("failed to init logger");
 
     if let Err(err) = dotenv() {

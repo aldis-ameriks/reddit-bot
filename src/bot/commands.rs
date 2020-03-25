@@ -1,10 +1,13 @@
+use diesel::result::DatabaseErrorKind;
+use diesel::result::Error::DatabaseError;
+use log::warn;
+
 use crate::bot::dialogs::{Dialog, Subscribe, Unsubscribe};
+use crate::bot::error::BotError;
 use crate::db::client::DbClient;
 use crate::reddit::client::RedditClient;
 use crate::telegram::client::TelegramClient;
 use crate::telegram::types::Message;
-use diesel::result::DatabaseErrorKind;
-use diesel::result::Error::DatabaseError;
 
 const HELP_TEXT: &str = r#"
 You can send me these commands:
@@ -22,7 +25,7 @@ pub async fn start(
     telegram_client: &TelegramClient,
     db: &DbClient,
     user_id: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), BotError> {
     match db.create_user(user_id) {
         Ok(_) => {
             telegram_client
@@ -44,7 +47,7 @@ pub async fn start(
                 .await?;
             Ok(())
         }
-        Err(err) => Err(Box::new(err)),
+        Err(err) => Err(BotError::DatabaseError(err)),
     }
 }
 
@@ -52,7 +55,7 @@ pub async fn stop(
     telegram_client: &TelegramClient,
     db: &DbClient,
     user_id: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), BotError> {
     db.delete_user(user_id)?;
     telegram_client
         .send_message(&Message {
@@ -70,33 +73,44 @@ pub async fn subscribe(
     db: &DbClient,
     reddit_client: &RedditClient,
     user_id: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    db.create_user(user_id).ok();
-    Dialog::<Subscribe>::new(user_id.to_string())
+) -> Result<(), BotError> {
+    match Dialog::<Subscribe>::new(user_id.to_string())
         .handle_current_step(&telegram_client, &db, &reddit_client, "")
-        .await?;
-
-    Ok(())
+        .await
+    {
+        Ok(_) => Ok(()),
+        Err(BotError::DatabaseError(err)) => {
+            if let DatabaseError(DatabaseErrorKind::ForeignKeyViolation, _) = err {
+                warn!("subscribe was initiated without user");
+                telegram_client
+                    .send_message(&Message {
+                        chat_id: user_id,
+                        text: "You need to call /start before subscribing",
+                        ..Default::default()
+                    })
+                    .await?;
+            }
+            Ok(())
+        }
+        Err(err) => Err(err),
+    }
 }
 
 pub async fn unsubscribe(
     telegram_client: &TelegramClient,
     db: &DbClient,
     user_id: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    db.create_user(user_id).ok();
+) -> Result<(), BotError> {
     Dialog::<Unsubscribe>::new(user_id.to_string())
         .handle_current_step(&telegram_client, &db, "")
-        .await?;
-
-    Ok(())
+        .await
 }
 
 pub async fn subscriptions(
     telegram_client: &TelegramClient,
     db: &DbClient,
     user_id: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), BotError> {
     let subscriptions = db.get_user_subscriptions(user_id)?;
     if subscriptions.is_empty() {
         telegram_client
@@ -123,10 +137,7 @@ pub async fn subscriptions(
     Ok(())
 }
 
-pub async fn help(
-    telegram_client: &TelegramClient,
-    user_id: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn help(telegram_client: &TelegramClient, user_id: &str) -> Result<(), BotError> {
     telegram_client
         .send_message(&Message {
             chat_id: user_id,
@@ -140,12 +151,13 @@ pub async fn help(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use mockito::server_url;
+    use serial_test::serial;
 
     use crate::db::test_helpers::{setup_test_db, setup_test_db_with};
     use crate::telegram::test_helpers::{mock_send_message_not_called, mock_send_message_success};
-    use mockito::server_url;
-    use serial_test::serial;
+
+    use super::*;
 
     const TOKEN: &str = "token";
     const USER_ID: &str = "123";
@@ -274,7 +286,7 @@ mod tests {
         let url = &server_url();
         let message = Message {
             chat_id: USER_ID,
-            text: "Type the name of subreddit you want to subscribe to",
+            text: "You need to call /start before subscribing",
             ..Default::default()
         };
         let _m = mock_send_message_success(TOKEN, &message);
@@ -288,10 +300,6 @@ mod tests {
         subscribe(&telegram_client, &db_client, &reddit_client, USER_ID)
             .await
             .unwrap();
-
-        let users = db_client.get_users().unwrap();
-        assert_eq!(users.len(), 1);
-        assert_eq!(users[0].id, USER_ID);
 
         _m.assert();
     }
@@ -309,13 +317,12 @@ mod tests {
         let db_client = setup_test_db();
         let telegram_client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
 
+        let users = db_client.get_users().unwrap();
+        assert_eq!(users.len(), 0);
+
         unsubscribe(&telegram_client, &db_client, USER_ID)
             .await
             .unwrap();
-
-        let users = db_client.get_users().unwrap();
-        assert_eq!(users.len(), 1);
-        assert_eq!(users[0].id, USER_ID);
 
         _m.assert();
     }

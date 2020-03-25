@@ -5,9 +5,11 @@ use serde::Serialize;
 
 use crate::db::models::DialogEntity;
 
+pub use self::feedback::Feedback;
 pub use self::subscribe::Subscribe;
 pub use self::unsubscribe::Unsubscribe;
 
+mod feedback;
 mod subscribe;
 mod unsubscribe;
 

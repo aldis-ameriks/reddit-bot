@@ -2,7 +2,7 @@ use diesel::result::DatabaseErrorKind;
 use diesel::result::Error::DatabaseError;
 use log::warn;
 
-use crate::bot::dialogs::{Dialog, Subscribe, Unsubscribe};
+use crate::bot::dialogs::{Dialog, Feedback, Subscribe, Unsubscribe};
 use crate::bot::error::BotError;
 use crate::db::client::DbClient;
 use crate::reddit::client::RedditClient;
@@ -16,9 +16,11 @@ You can send me these commands:
 /subscribe
 /unsubscribe
 /subscriptions
+/feedback
 /help
 
 Bot is open source and available here https://github.com/aldis-ameriks/reddit-bot. If you encounter any issues feel free to open an issue.
+Or you can also send feedback via /feedback command.
 "#;
 
 pub async fn start(
@@ -85,7 +87,7 @@ pub async fn subscribe(
                 telegram_client
                     .send_message(&Message {
                         chat_id: user_id,
-                        text: "You need to call /start before subscribing",
+                        text: "You need to call /start before interacting with me",
                         ..Default::default()
                     })
                     .await?;
@@ -135,6 +137,34 @@ pub async fn subscriptions(
     }
 
     Ok(())
+}
+
+pub async fn feedback(
+    telegram_client: &TelegramClient,
+    db: &DbClient,
+    author_id: &str,
+    user_id: &str,
+) -> Result<(), BotError> {
+    match Dialog::<Feedback>::new(user_id.to_string())
+        .handle_current_step(&telegram_client, &db, author_id, "")
+        .await
+    {
+        Ok(_) => Ok(()),
+        Err(BotError::DatabaseError(err)) => {
+            if let DatabaseError(DatabaseErrorKind::ForeignKeyViolation, _) = err {
+                warn!("feedback was initiated without user");
+                telegram_client
+                    .send_message(&Message {
+                        chat_id: user_id,
+                        text: "You need to call /start before interacting with me",
+                        ..Default::default()
+                    })
+                    .await?;
+            }
+            Ok(())
+        }
+        Err(err) => Err(err),
+    }
 }
 
 pub async fn help(telegram_client: &TelegramClient, user_id: &str) -> Result<(), BotError> {
@@ -286,7 +316,7 @@ mod tests {
         let url = &server_url();
         let message = Message {
             chat_id: USER_ID,
-            text: "You need to call /start before subscribing",
+            text: "You need to call /start before interacting with me",
             ..Default::default()
         };
         let _m = mock_send_message_success(TOKEN, &message);
@@ -378,6 +408,49 @@ mod tests {
 
         let result = subscriptions(&telegram_client, &db_client, USER_ID).await;
         assert!(result.is_err());
+        _m.assert();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn feedback_success() {
+        let url = &server_url();
+        let message = Message {
+            chat_id: USER_ID,
+            text: "You can write your feedback. If you want the author to get back to you, leave your email.",
+            ..Default::default()
+        };
+        let _m = mock_send_message_success(TOKEN, &message);
+        let db_client = setup_test_db();
+        db_client.create_user(USER_ID).unwrap();
+        let telegram_client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
+
+        feedback(&telegram_client, &db_client, "", USER_ID)
+            .await
+            .unwrap();
+
+        _m.assert();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn feedback_without_user() {
+        let url = &server_url();
+        let message = Message {
+            chat_id: USER_ID,
+            text: "You need to call /start before interacting with me",
+            ..Default::default()
+        };
+        let _m = mock_send_message_success(TOKEN, &message);
+        let db_client = setup_test_db();
+        let telegram_client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
+
+        let users = db_client.get_users().unwrap();
+        assert_eq!(users.len(), 0);
+
+        feedback(&telegram_client, &db_client, "", USER_ID)
+            .await
+            .unwrap();
         _m.assert();
     }
 

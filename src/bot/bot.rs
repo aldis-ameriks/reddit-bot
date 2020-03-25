@@ -2,24 +2,34 @@ use futures::StreamExt;
 use log::{error, info, warn};
 use telegram_bot::{Api, MessageKind, UpdateKind};
 
-use crate::bot::commands::{help, start, stop, subscribe, subscriptions, unsubscribe};
-use crate::bot::dialogs::{Dialog, Subscribe, Unsubscribe};
+use crate::bot::commands::{feedback, help, start, stop, subscribe, subscriptions, unsubscribe};
+use crate::bot::dialogs::{Dialog, Feedback, Subscribe, Unsubscribe};
 use crate::bot::error::BotError;
 use crate::db::client::DbClient;
 use crate::reddit::client::RedditClient;
 use crate::telegram::client::TelegramClient;
 use crate::telegram::types::Message;
 
-const ERROR_TEXT: &str = "Looks like I'm having a technical glitch. Something went wrong.";
+const ERROR_TEXT: &str = r#"
+Looks like I'm having a technical glitch. Something went wrong.
+If the issues persist, open an issue on github (https://github.com/aldis-ameriks/reddit-bot) or you can also send feedback via /feedback command.
+"#;
 
-pub async fn init_bot(token: &str, database_url: &str) {
+pub async fn init_bot(token: &str, database_url: &str, author_id: &str) {
     let db = DbClient::new(&database_url);
     let api = Api::new(&token);
     let reddit_client = RedditClient::new();
     let telegram_client = TelegramClient::new(token.to_string());
 
     let handle_stuff = |data: String, user_id: String| {
-        handle_message(&db, &telegram_client, &reddit_client, data, user_id)
+        handle_message(
+            &db,
+            &telegram_client,
+            &reddit_client,
+            author_id,
+            data,
+            user_id,
+        )
     };
 
     let mut stream = api.stream();
@@ -70,6 +80,7 @@ async fn handle_message(
     db: &DbClient,
     telegram_client: &TelegramClient,
     reddit_client: &RedditClient,
+    author_id: &str,
     payload: String,
     user_id: String,
 ) -> Result<(), BotError> {
@@ -82,6 +93,7 @@ async fn handle_message(
         "/subscribe" => subscribe(&telegram_client, &db, &reddit_client, &user_id).await?,
         "/unsubscribe" => unsubscribe(&telegram_client, &db, &user_id).await?,
         "/subscriptions" => subscriptions(&telegram_client, &db, &user_id).await?,
+        "/feedback" => feedback(&telegram_client, &db, author_id, &user_id).await?,
         "/help" => help(&telegram_client, &user_id).await?,
         _ => {
             if let Ok(dialog) = db.get_users_dialog(&user_id) {
@@ -97,6 +109,13 @@ async fn handle_message(
                         let mut dialog: Dialog<Unsubscribe> = Dialog::from(dialog);
                         dialog
                             .handle_current_step(&telegram_client, &db, &payload)
+                            .await?;
+                        return Ok(());
+                    }
+                    "/feedback" => {
+                        let mut dialog: Dialog<Feedback> = Dialog::from(dialog);
+                        dialog
+                            .handle_current_step(&telegram_client, &db, author_id, &payload)
                             .await?;
                         return Ok(());
                     }

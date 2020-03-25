@@ -16,10 +16,14 @@ mod telegram;
 
 embed_migrations!();
 
-pub async fn start(tg_token: String, database_url: String) -> Result<(), BotError> {
+pub async fn start(
+    tg_token: String,
+    database_url: String,
+    author_id: String,
+) -> Result<(), BotError> {
     run_migrations(&database_url);
     init_task(&tg_token, &database_url);
-    init_bot(&tg_token, &database_url).await;
+    init_bot(&tg_token, &database_url, &author_id).await;
 
     Ok(())
 }

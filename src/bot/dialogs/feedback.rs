@@ -63,7 +63,7 @@ impl Dialog<Feedback> {
                 telegram_client
                     .send_message(&Message {
                         chat_id: &self.user_id,
-                        text: "Sent your feedback to the author. Thanks for the input!",
+                        text: "Passed your feedback to my creator. Thanks for the input!",
                         ..Default::default()
                     })
                     .await?;

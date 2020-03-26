@@ -175,6 +175,15 @@ impl Dialog<Subscribe> {
                         }
                     }
                 }
+
+                telegram_client
+                    .send_message(&Message {
+                        chat_id: &self.user_id,
+                        text:
+                            "You can use /sendnow to get posts now from all of your subscriptions.",
+                        ..Default::default()
+                    })
+                    .await?;
                 db.delete_dialog(&self.user_id)?;
             }
         }

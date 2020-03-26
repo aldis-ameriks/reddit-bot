@@ -12,7 +12,6 @@ use crate::bot::dialogs::Dialog;
 use crate::bot::error::BotError;
 use crate::db::client::DbClient;
 use crate::reddit::client::RedditClient;
-use crate::task::task::process_subscription;
 use crate::telegram::client::TelegramClient;
 use crate::telegram::helpers::build_inline_keyboard_markup;
 use crate::telegram::types::{InlineKeyboardButton, Message, ReplyMarkup};
@@ -51,22 +50,30 @@ impl Dialog<Subscribe> {
                 telegram_client
                     .send_message(&Message {
                         chat_id: &self.user_id,
-                        text: "Type the name of subreddit you want to subscribe to",
+                        text: "Type the name of subreddit you want to subscribe to.\nMultiple subreddits are allowed, separated by whitespace.",
                         ..Default::default()
                     })
                     .await?;
             }
             Subscribe::Subreddit => {
-                let subreddit = self.data.get(&Subscribe::Subreddit).unwrap();
-                if !reddit_client.validate_subreddit(&subreddit).await {
-                    telegram_client
-                        .send_message(&Message {
-                            chat_id: &self.user_id,
-                            text: "Invalid subreddit, try again",
-                            ..Default::default()
-                        })
-                        .await?;
-                    return Ok(());
+                let subreddits: Vec<&str> = self
+                    .data
+                    .get(&Subscribe::Subreddit)
+                    .unwrap()
+                    .split(" ")
+                    .collect();
+
+                for subreddit in subreddits {
+                    if !reddit_client.validate_subreddit(&subreddit).await {
+                        telegram_client
+                            .send_message(&Message {
+                                chat_id: &self.user_id,
+                                text: &format!("Invalid subreddit - {}, try again", subreddit),
+                                ..Default::default()
+                            })
+                            .await?;
+                        return Ok(());
+                    }
                 }
 
                 let buttons = (0..7)
@@ -113,7 +120,12 @@ impl Dialog<Subscribe> {
                     .await?;
             }
             Subscribe::Time => {
-                let subreddit = self.data.get(&Subscribe::Subreddit).unwrap();
+                let subreddits: Vec<&str> = self
+                    .data
+                    .get(&Subscribe::Subreddit)
+                    .unwrap()
+                    .split(" ")
+                    .collect();
                 let day = self
                     .data
                     .get(&Subscribe::Weekday)
@@ -127,39 +139,39 @@ impl Dialog<Subscribe> {
                     .parse::<i32>()
                     .unwrap_or(12);
 
-                match db.subscribe(&self.user_id, &subreddit, day, time) {
-                    Ok(subscription) => {
-                        telegram_client
-                            .send_message(&Message {
-                                chat_id: &self.user_id,
-                                text: &format!(
-                                    "Subscribed to: {}. Posts will be sent periodically on {} at around {}:00 UTC time.",
-                                    &subreddit, Weekday::from_i32(day).unwrap(), time
-                                ),
-                                ..Default::default()
-                            })
-                            .await?;
-                        process_subscription(&db, &telegram_client, &reddit_client, &subscription)
-                            .await;
-                    }
-                    Err(err) => {
-                        error!("err: {}", err);
-                        if let DatabaseError(DatabaseErrorKind::UniqueViolation, _) = err {
+                for subreddit in &subreddits {
+                    match db.subscribe(&self.user_id, &subreddit, day, time) {
+                        Ok(_) => {
                             telegram_client
                                 .send_message(&Message {
                                     chat_id: &self.user_id,
-                                    text: &format!("Already subscribed to {}", &subreddit),
+                                    text: &format!(
+                                        "Subscribed to: {}. Posts will be sent periodically on {} at around {}:00 UTC time.",
+                                        &subreddit, Weekday::from_i32(day).unwrap(), time
+                                    ),
                                     ..Default::default()
                                 })
                                 .await?;
-                        } else {
-                            telegram_client
-                                .send_message(&Message {
-                                    chat_id: &self.user_id,
-                                    text: "Something went wrong",
-                                    ..Default::default()
-                                })
-                                .await?;
+                        }
+                        Err(err) => {
+                            error!("err: {}", err);
+                            if let DatabaseError(DatabaseErrorKind::UniqueViolation, _) = err {
+                                telegram_client
+                                    .send_message(&Message {
+                                        chat_id: &self.user_id,
+                                        text: &format!("Already subscribed to {}", &subreddit),
+                                        ..Default::default()
+                                    })
+                                    .await?;
+                            } else {
+                                telegram_client
+                                    .send_message(&Message {
+                                        chat_id: &self.user_id,
+                                        text: "Something went wrong",
+                                        ..Default::default()
+                                    })
+                                    .await?;
+                            }
                         }
                     }
                 }

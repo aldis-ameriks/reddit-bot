@@ -295,7 +295,7 @@ mod tests {
         let url = &server_url();
         let message = Message {
             chat_id: USER_ID,
-            text: "Type the name of subreddit you want to subscribe to",
+            text: "Type the name of subreddit you want to subscribe to.\nMultiple subreddits are allowed, separated by whitespace.",
             ..Default::default()
         };
         let _m = mock_send_message_success(TOKEN, &message);

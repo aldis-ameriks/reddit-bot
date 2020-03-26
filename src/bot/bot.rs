@@ -2,7 +2,9 @@ use futures::StreamExt;
 use log::{error, info, warn};
 use telegram_bot::{Api, MessageKind, UpdateKind};
 
-use crate::bot::commands::{feedback, help, start, stop, subscribe, subscriptions, unsubscribe};
+use crate::bot::commands::{
+    feedback, help, send_now, start, stop, subscribe, subscriptions, unsubscribe,
+};
 use crate::bot::dialogs::{Dialog, Feedback, Subscribe, Unsubscribe};
 use crate::bot::error::BotError;
 use crate::db::client::DbClient;
@@ -94,6 +96,7 @@ async fn handle_message(
         "/unsubscribe" => unsubscribe(&telegram_client, &db, &user_id).await?,
         "/subscriptions" => subscriptions(&telegram_client, &db, &user_id).await?,
         "/feedback" => feedback(&telegram_client, &db, author_id, &user_id).await?,
+        "/sendnow" => send_now(&telegram_client, &db, &reddit_client, &user_id).await?,
         "/help" => help(&telegram_client, &user_id).await?,
         _ => {
             if let Ok(dialog) = db.get_users_dialog(&user_id) {

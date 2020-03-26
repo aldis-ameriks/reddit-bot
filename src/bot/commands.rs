@@ -6,6 +6,7 @@ use crate::bot::dialogs::{Dialog, Feedback, Subscribe, Unsubscribe};
 use crate::bot::error::BotError;
 use crate::db::client::DbClient;
 use crate::reddit::client::RedditClient;
+use crate::task::task::process_subscription;
 use crate::telegram::client::TelegramClient;
 use crate::telegram::types::Message;
 
@@ -16,6 +17,7 @@ You can send me these commands:
 /subscribe
 /unsubscribe
 /subscriptions
+/sendnow
 /feedback
 /help
 
@@ -167,6 +169,31 @@ pub async fn feedback(
     }
 }
 
+pub async fn send_now(
+    telegram_client: &TelegramClient,
+    db: &DbClient,
+    reddit_client: &RedditClient,
+    user_id: &str,
+) -> Result<(), BotError> {
+    let subscriptions = db.get_user_subscriptions(user_id)?;
+
+    if subscriptions.len() == 0 {
+        telegram_client
+            .send_message(&Message {
+                chat_id: user_id,
+                text: "You haven't subscribed to anything yet. Subscribe using /subscribe command.",
+                ..Default::default()
+            })
+            .await?;
+    }
+
+    for subscription in subscriptions {
+        process_subscription(db, telegram_client, reddit_client, &subscription).await;
+    }
+
+    Ok(())
+}
+
 pub async fn help(telegram_client: &TelegramClient, user_id: &str) -> Result<(), BotError> {
     telegram_client
         .send_message(&Message {
@@ -188,6 +215,7 @@ mod tests {
     use crate::telegram::test_helpers::{mock_send_message_not_called, mock_send_message_success};
 
     use super::*;
+    use crate::reddit::test_helpers::mock_reddit_success;
 
     const TOKEN: &str = "token";
     const USER_ID: &str = "123";
@@ -449,6 +477,53 @@ mod tests {
         assert_eq!(users.len(), 0);
 
         feedback(&telegram_client, &db_client, "", USER_ID)
+            .await
+            .unwrap();
+        _m.assert();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn send_now_success() {
+        let url = &server_url();
+        let subreddit = "rust";
+        let message = Message {
+            chat_id: USER_ID,
+            text: &format!("Weekly popular posts from: \"rust\"\n\nA half-hour to learn Rust\n{}/r/rust/comments/fbenua/a_halfhour_to_learn_rust/\n\n", url),
+            disable_web_page_preview: true,
+            ..Default::default()
+        };
+        let _m1 = mock_send_message_success(TOKEN, &message);
+        let _m2 = mock_reddit_success(subreddit);
+        let db_client = setup_test_db();
+        db_client.create_user(USER_ID).unwrap();
+        db_client.subscribe(USER_ID, subreddit, 1, 1).unwrap();
+        let telegram_client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
+        let reddit_client = RedditClient::new_with(&url);
+
+        send_now(&telegram_client, &db_client, &reddit_client, USER_ID)
+            .await
+            .unwrap();
+        _m1.assert();
+        _m2.assert();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn send_now_no_subscriptions() {
+        let url = &server_url();
+        let message = Message {
+            chat_id: USER_ID,
+            text: "You haven't subscribed to anything yet. Subscribe using /subscribe command.",
+            ..Default::default()
+        };
+        let _m = mock_send_message_success(TOKEN, &message);
+        let db_client = setup_test_db();
+        db_client.create_user(USER_ID).unwrap();
+        let telegram_client = TelegramClient::new_with(String::from(TOKEN), String::from(url));
+        let reddit_client = RedditClient::new_with(&url);
+
+        send_now(&telegram_client, &db_client, &reddit_client, USER_ID)
             .await
             .unwrap();
         _m.assert();

@@ -89,7 +89,7 @@ pub async fn subscribe(
                 telegram_client
                     .send_message(&Message {
                         chat_id: user_id,
-                        text: "You need to call /start before interacting with me",
+                        text: "You need to call /start before setting up subscriptions",
                         ..Default::default()
                     })
                     .await?;
@@ -120,7 +120,7 @@ pub async fn subscriptions(
         telegram_client
             .send_message(&Message {
                 chat_id: user_id,
-                text: "You have no subscriptions",
+                text: "You haven't subscribed to anything yet. Subscribe using /subscribe command.",
                 ..Default::default()
             })
             .await?;
@@ -344,7 +344,7 @@ mod tests {
         let url = &server_url();
         let message = Message {
             chat_id: USER_ID,
-            text: "You need to call /start before interacting with me",
+            text: "You need to call /start before setting up subscriptions",
             ..Default::default()
         };
         let _m = mock_send_message_success(TOKEN, &message);
@@ -412,7 +412,7 @@ mod tests {
         let url = &server_url();
         let message = Message {
             chat_id: USER_ID,
-            text: "You have no subscriptions",
+            text: "You haven't subscribed to anything yet. Subscribe using /subscribe command.",
             ..Default::default()
         };
         let _m = mock_send_message_success(TOKEN, &message);

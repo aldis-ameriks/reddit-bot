@@ -13,47 +13,52 @@ use crate::reddit::client::RedditClient;
 use crate::telegram::client::TelegramClient;
 use crate::telegram::types::Message;
 
-pub fn init_task(token: &str, database_url: &str) {
+pub fn init_task(token: String, database_url: String) {
     let db = DbClient::new(&database_url);
     let reddit_client = RedditClient::new();
     let telegram_client = TelegramClient::new(token.to_string());
 
     thread::spawn(move || {
-        let mut rt = Runtime::new().unwrap();
+        let result = std::panic::catch_unwind(move || {
+            let mut rt = Runtime::new().unwrap();
 
-        rt.block_on(async {
-            loop {
-                if let Ok(user_subscriptions) = db.get_subscriptions() {
-                    for user_subscription in user_subscriptions {
-                        let now = Utc::now();
-                        if now.weekday() != Weekday::from_i32(user_subscription.send_on).unwrap()
-                            || now.hour() < user_subscription.send_at as u32
-                        {
-                            continue;
-                        }
+            rt.block_on(async {
+                loop {
+                    if let Ok(user_subscriptions) = db.get_subscriptions() {
+                        for user_subscription in user_subscriptions {
+                            let now = Utc::now();
+                            if now.weekday()
+                                != Weekday::from_i32(user_subscription.send_on).unwrap()
+                                || now.hour() < user_subscription.send_at as u32
+                            {
+                                continue;
+                            }
 
-                        if let Some(date) = &user_subscription.last_sent_at {
-                            if let Ok(parsed) = date.parse::<DateTime<Utc>>() {
-                                if parsed.date().eq(&now.date()) {
-                                    continue;
+                            if let Some(date) = &user_subscription.last_sent_at {
+                                if let Ok(parsed) = date.parse::<DateTime<Utc>>() {
+                                    if parsed.date().eq(&now.date()) {
+                                        continue;
+                                    }
                                 }
                             }
+                            process_subscription(
+                                &db,
+                                &telegram_client,
+                                &reddit_client,
+                                &user_subscription,
+                            )
+                            .await;
                         }
-                        process_subscription(
-                            &db,
-                            &telegram_client,
-                            &reddit_client,
-                            &user_subscription,
-                        )
-                        .await;
                     }
+                    thread::sleep(Duration::from_secs(10));
                 }
-                thread::sleep(Duration::from_secs(10));
-            }
+            });
         });
-    })
-    .join()
-    .expect("Thread panicked!");
+        if let Err(_) = result {
+            error!("thread panicked, recovering");
+            init_task(token, database_url);
+        }
+    });
 }
 
 pub async fn process_subscription(

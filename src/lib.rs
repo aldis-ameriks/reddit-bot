@@ -22,7 +22,7 @@ pub async fn start(
     author_id: String,
 ) -> Result<(), BotError> {
     run_migrations(&database_url);
-    init_task(&tg_token, &database_url);
+    init_task(tg_token.clone(), database_url.clone());
     init_bot(&tg_token, &database_url, &author_id).await;
 
     Ok(())

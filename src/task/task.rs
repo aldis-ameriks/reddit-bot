@@ -60,34 +60,37 @@ pub async fn process_subscription(
     reddit_client: &RedditClient,
     user_subscription: &Subscription,
 ) {
-    if let Ok(posts) = reddit_client
+    match reddit_client
         .fetch_posts(&user_subscription.subreddit)
         .await
     {
-        let mut message = format!(
-            "Weekly popular posts from: \"{}\"\n\n",
-            &user_subscription.subreddit
-        );
-        for post in posts.iter() {
-            message.push_str(format!("{}\n", post).as_str());
-        }
+        Ok(posts) => {
+            let mut message = format!(
+                "Weekly popular posts from: \"{}\"\n\n",
+                &user_subscription.subreddit
+            );
+            for post in posts.iter() {
+                message.push_str(format!("{}\n", post).as_str());
+            }
 
-        if let Ok(_) = telegram_client
-            .send_message(&Message {
-                chat_id: &user_subscription.user_id,
-                text: &message,
-                disable_web_page_preview: true,
-                ..Default::default()
-            })
-            .await
-        {
-            info!("sent reddit posts");
-            if let Err(err) = db.update_last_sent(user_subscription.id) {
-                error!("failed to update last sent date: {}", err);
+            if let Ok(_) = telegram_client
+                .send_message(&Message {
+                    chat_id: &user_subscription.user_id,
+                    text: &message,
+                    disable_web_page_preview: true,
+                    ..Default::default()
+                })
+                .await
+            {
+                info!("sent reddit posts");
+                if let Err(err) = db.update_last_sent(user_subscription.id) {
+                    error!("failed to update last sent date: {}", err);
+                }
             }
         }
-    } else {
-        error!("failed to fetch reddit posts");
+        Err(err) => {
+            error!("failed to fetch reddit posts: {}", err);
+        }
     }
 }
 

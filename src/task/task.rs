@@ -51,7 +51,9 @@ pub fn init_task(token: &str, database_url: &str) {
                 thread::sleep(Duration::from_secs(10));
             }
         });
-    });
+    })
+    .join()
+    .expect("Thread panicked!");
 }
 
 pub async fn process_subscription(

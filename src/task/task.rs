@@ -84,7 +84,10 @@ pub async fn process_subscription(
                 })
                 .await
             {
-                info!("sent reddit posts");
+                info!(
+                    "sent reddit posts for user: {}, subreddit: {}",
+                    &user_subscription.user_id, &user_subscription.subreddit
+                );
                 if let Err(err) = db.update_last_sent(user_subscription.id) {
                     error!("failed to update last sent date: {}", err);
                 }

@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use chrono::prelude::*;
 use chrono::{Datelike, Utc, Weekday};
-use log::{error, info};
+use log::{debug, error, info};
 use num::traits::FromPrimitive;
 use tokio::runtime::Runtime;
 
@@ -31,7 +31,7 @@ pub fn init_task(token: String, database_url: String) {
                             let send_on = Weekday::from_i32(user_subscription.send_on).unwrap();
                             let send_at = user_subscription.send_at as u32;
                             if now.weekday() != send_on || now.hour() < send_at {
-                                info!(
+                                debug!(
                                     "skipping subscription - now: {}, send_on: {}, send_at: {}",
                                     now, send_on, send_at
                                 );
@@ -41,7 +41,7 @@ pub fn init_task(token: String, database_url: String) {
                             if let Some(date) = &user_subscription.last_sent_at {
                                 if let Ok(parsed) = date.parse::<DateTime<Utc>>() {
                                     if parsed.date().eq(&now.date()) {
-                                        info!("already sent today: {:?}", &user_subscription);
+                                        debug!("already sent today: {:?}", &user_subscription);
                                         continue;
                                     }
                                 }

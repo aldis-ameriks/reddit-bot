@@ -12,6 +12,7 @@ use crate::db::models::Subscription;
 use crate::reddit::client::RedditClient;
 use crate::telegram::client::TelegramClient;
 use crate::telegram::types::Message;
+use crate::BotError;
 
 pub fn init_task(token: String, database_url: String) {
     let db = DbClient::new(&database_url);
@@ -27,27 +28,39 @@ pub fn init_task(token: String, database_url: String) {
                     if let Ok(user_subscriptions) = db.get_subscriptions() {
                         for user_subscription in user_subscriptions {
                             let now = Utc::now();
-                            if now.weekday()
-                                != Weekday::from_i32(user_subscription.send_on).unwrap()
-                                || now.hour() < user_subscription.send_at as u32
-                            {
+                            let send_on = Weekday::from_i32(user_subscription.send_on).unwrap();
+                            let send_at = user_subscription.send_at as u32;
+                            if now.weekday() != send_on || now.hour() < send_at {
+                                info!(
+                                    "skipping subscription - now: {}, send_on: {}, send_at: {}",
+                                    now, send_on, send_at
+                                );
                                 continue;
                             }
 
                             if let Some(date) = &user_subscription.last_sent_at {
                                 if let Ok(parsed) = date.parse::<DateTime<Utc>>() {
                                     if parsed.date().eq(&now.date()) {
+                                        info!("already sent today: {:?}", &user_subscription);
                                         continue;
                                     }
                                 }
                             }
-                            process_subscription(
+                            match process_subscription(
                                 &db,
                                 &telegram_client,
                                 &reddit_client,
                                 &user_subscription,
                             )
-                            .await;
+                            .await
+                            {
+                                Ok(_) => {
+                                    info!("processed subscription: {:?}", &user_subscription);
+                                }
+                                Err(err) => {
+                                    error!("failed to process subscription: {}", err);
+                                }
+                            }
                         }
                     }
                     thread::sleep(Duration::from_secs(10));
@@ -66,52 +79,43 @@ pub async fn process_subscription(
     telegram_client: &TelegramClient,
     reddit_client: &RedditClient,
     user_subscription: &Subscription,
-) {
-    match reddit_client
+) -> Result<(), BotError> {
+    let posts = reddit_client
         .fetch_posts(&user_subscription.subreddit)
-        .await
-    {
-        Ok(posts) => {
-            let mut message = format!(
-                "Weekly popular posts from: \"{}\"\n\n",
-                &user_subscription.subreddit
-            );
-            for post in posts.iter() {
-                message.push_str(format!("{}\n", post).as_str());
-            }
+        .await?;
 
-            if let Ok(_) = telegram_client
-                .send_message(&Message {
-                    chat_id: &user_subscription.user_id,
-                    text: &message,
-                    disable_web_page_preview: true,
-                    ..Default::default()
-                })
-                .await
-            {
-                info!(
-                    "sent reddit posts for user: {}, subreddit: {}",
-                    &user_subscription.user_id, &user_subscription.subreddit
-                );
-                if let Err(err) = db.update_last_sent(user_subscription.id) {
-                    error!("failed to update last sent date: {}", err);
-                }
-            }
-        }
-        Err(err) => {
-            error!("failed to fetch reddit posts: {}", err);
-        }
+    let mut message = format!(
+        "Weekly popular posts from: \"{}\"\n\n",
+        &user_subscription.subreddit
+    );
+
+    for post in posts.iter() {
+        message.push_str(format!("{}\n", post).as_str());
     }
+
+    telegram_client
+        .send_message(&Message {
+            chat_id: &user_subscription.user_id,
+            text: &message,
+            disable_web_page_preview: true,
+            ..Default::default()
+        })
+        .await?;
+    db.update_last_sent(user_subscription.id)?;
+
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use mockito::server_url;
+    use serial_test::serial;
+
     use crate::db::test_helpers::setup_test_db;
     use crate::reddit::test_helpers::mock_reddit_success;
     use crate::telegram::test_helpers::mock_send_message_success;
-    use mockito::server_url;
-    use serial_test::serial;
+
+    use super::*;
 
     const USER_ID: &str = "123";
     const TOKEN: &str = "token";
@@ -147,7 +151,7 @@ mod tests {
             &reddit_client,
             &user_subscription,
         )
-        .await;
+        .await?;
 
         _m.assert();
         _m2.assert();

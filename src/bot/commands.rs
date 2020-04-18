@@ -1,6 +1,6 @@
 use diesel::result::DatabaseErrorKind;
 use diesel::result::Error::DatabaseError;
-use log::warn;
+use log::{error, info, warn};
 
 use crate::bot::dialogs::{Dialog, Feedback, Subscribe, Unsubscribe};
 use crate::bot::error::BotError;
@@ -188,7 +188,14 @@ pub async fn send_now(
     }
 
     for subscription in subscriptions {
-        process_subscription(db, telegram_client, reddit_client, &subscription).await;
+        match process_subscription(db, telegram_client, reddit_client, &subscription).await {
+            Ok(_) => {
+                info!("processed subscription: {:?}", &subscription);
+            }
+            Err(err) => {
+                error!("failed to process subscription: {}", err);
+            }
+        }
     }
 
     Ok(())

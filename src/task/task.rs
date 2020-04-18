@@ -64,7 +64,10 @@ pub fn init_task(token: String, database_url: String) {
                                     )) = err
                                     {
                                         if err.contains("Forbidden: bot was blocked by the user") {
-                                            warn!("bot is blocked by user, removing from db");
+                                            warn!(
+                                                "bot is blocked by user, removing user: {} from db",
+                                                &user_subscription.user_id
+                                            );
                                             db.delete_user(&user_subscription.user_id).ok();
                                         } else {
                                             error!("failed to process subscription: {}", err);

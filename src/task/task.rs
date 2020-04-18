@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use chrono::prelude::*;
 use chrono::{Datelike, Utc, Weekday};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use num::traits::FromPrimitive;
 use tokio::runtime::Runtime;
 
@@ -11,6 +11,7 @@ use crate::db::client::DbClient;
 use crate::db::models::Subscription;
 use crate::reddit::client::RedditClient;
 use crate::telegram::client::TelegramClient;
+use crate::telegram::error::TelegramError;
 use crate::telegram::types::Message;
 use crate::BotError;
 
@@ -58,7 +59,19 @@ pub fn init_task(token: String, database_url: String) {
                                     info!("processed subscription: {:?}", &user_subscription);
                                 }
                                 Err(err) => {
-                                    error!("failed to process subscription: {}", err);
+                                    if let BotError::TelegramError(TelegramError::Unsuccessful(
+                                        err,
+                                    )) = err
+                                    {
+                                        if err.contains("Forbidden: bot was blocked by the user") {
+                                            warn!("bot is blocked by user, removing from db");
+                                            db.delete_user(&user_subscription.user_id).ok();
+                                        } else {
+                                            error!("failed to process subscription: {}", err);
+                                        }
+                                    } else {
+                                        error!("failed to process subscription: {}", err);
+                                    }
                                 }
                             }
                         }

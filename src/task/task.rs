@@ -151,7 +151,8 @@ mod tests {
             &reddit_client,
             &user_subscription,
         )
-        .await?;
+        .await
+        .unwrap();
 
         _m.assert();
         _m2.assert();

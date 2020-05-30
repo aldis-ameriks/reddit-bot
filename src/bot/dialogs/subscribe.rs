@@ -56,13 +56,12 @@ impl Dialog<Subscribe> {
                     .await?;
             }
             Subscribe::Subreddit => {
-                let subreddits_raw = self
+                let subreddits = self
                     .data
                     .get(&Subscribe::Subreddit)
                     .unwrap()
                     .replace("r/", "");
-
-                let subreddits: Vec<&str> = subreddits_raw.split(" ").collect();
+                let subreddits: Vec<&str> = subreddits.split(" ").collect();
 
                 for subreddit in subreddits {
                     if !reddit_client.validate_subreddit(&subreddit).await {
@@ -121,12 +120,12 @@ impl Dialog<Subscribe> {
                     .await?;
             }
             Subscribe::Time => {
-                let subreddits: Vec<&str> = self
+                let subreddits = self
                     .data
                     .get(&Subscribe::Subreddit)
                     .unwrap()
-                    .split(" ")
-                    .collect();
+                    .replace("r/", "");
+                let subreddits: Vec<&str> = subreddits.split(" ").collect();
                 let day = self
                     .data
                     .get(&Subscribe::Weekday)

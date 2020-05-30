@@ -6,6 +6,7 @@ use std::fmt::Formatter;
 pub enum RedditError {
     NetworkError(reqwest::Error),
     MalformedResponse(serde_json::error::Error),
+    Error,
 }
 
 impl From<reqwest::Error> for RedditError {
@@ -27,6 +28,7 @@ impl fmt::Display for RedditError {
         match self {
             RedditError::NetworkError(err) => err.fmt(f),
             RedditError::MalformedResponse(err) => err.fmt(f),
+            _ => Ok(()),
         }
     }
 }

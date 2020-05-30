@@ -1,4 +1,4 @@
-use log::warn;
+use log::{error, warn};
 use serde_json::Value;
 
 use super::error::RedditError;
@@ -27,11 +27,21 @@ impl RedditClient {
         let res = reqwest::get(&url).await?;
         let body = res.text().await?;
         let body: Value = serde_json::from_str(&body)?;
-        let children = body
-            .get("data")
-            .expect("Missing data")
-            .get("children")
-            .expect("Missing children");
+
+        let data = body.get("data");
+        if None == data {
+            error!("Missing data in response for subreddit: {}", subreddit);
+            return Err(RedditError::Error);
+        }
+
+        let children = data.unwrap().get("children");
+
+        if None == children {
+            error!("Missing children in response for subreddit: {}", subreddit);
+            return Err(RedditError::Error);
+        }
+
+        let children = children.unwrap();
 
         let posts = if let Value::Array(children) = children {
             children

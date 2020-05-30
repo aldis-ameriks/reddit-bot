@@ -56,12 +56,13 @@ impl Dialog<Subscribe> {
                     .await?;
             }
             Subscribe::Subreddit => {
-                let subreddits: Vec<&str> = self
+                let subreddits_raw = self
                     .data
                     .get(&Subscribe::Subreddit)
                     .unwrap()
-                    .split(" ")
-                    .collect();
+                    .replace("r/", "");
+
+                let subreddits: Vec<&str> = subreddits_raw.split(" ").collect();
 
                 for subreddit in subreddits {
                     if !reddit_client.validate_subreddit(&subreddit).await {

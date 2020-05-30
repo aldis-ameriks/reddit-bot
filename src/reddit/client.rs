@@ -139,7 +139,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[should_panic(expected = "Missing data")]
     async fn fetch_posts_missing_data() {
         let url = &server_url();
 
@@ -158,7 +157,8 @@ mod tests {
         .create();
 
         let reddit_client = RedditClient::new_with(url);
-        reddit_client.fetch_posts(subreddit).await.unwrap();
+        let result = reddit_client.fetch_posts(subreddit).await;
+        assert_eq!(result.is_err(), true);
         _m.assert();
     }
 

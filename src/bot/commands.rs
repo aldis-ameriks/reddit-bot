@@ -1,6 +1,8 @@
 use diesel::result::DatabaseErrorKind;
 use diesel::result::Error::DatabaseError;
 use log::{error, info, warn};
+use std::thread;
+use std::time::Duration;
 
 use crate::bot::dialogs::{Dialog, Feedback, Subscribe, Unsubscribe};
 use crate::bot::error::BotError;
@@ -196,6 +198,7 @@ pub async fn send_now(
                 error!("failed to process subscription: {}", err);
             }
         }
+        thread::sleep(Duration::from_secs(1));
     }
 
     Ok(())

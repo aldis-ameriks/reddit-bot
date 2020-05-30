@@ -77,6 +77,7 @@ pub fn init_task(token: String, database_url: String) {
                                     }
                                 }
                             }
+                            thread::sleep(Duration::from_secs(1));
                         }
                     }
                     thread::sleep(Duration::from_secs(10));

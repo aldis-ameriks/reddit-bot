@@ -129,7 +129,7 @@ async fn handle_message(
             telegram_client
                 .send_message(&Message {
                     chat_id: &user_id,
-                    text: "Say what?",
+                    text: "I didn't get that. Use /help to see list of available commands.",
                     ..Default::default()
                 })
                 .await?;

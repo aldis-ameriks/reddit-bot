@@ -71,7 +71,7 @@ pub async fn init_bot(token: &str, bot_name: &str, database_url: &str, author_id
 
                     match message {
                         MessageOrChannelPost::Message(message) => {
-                            user_id = message.from.id.to_string();
+                            user_id = message.chat.id().to_string();
                         }
                         MessageOrChannelPost::ChannelPost(post) => {
                             user_id = post.chat.id.to_string();

@@ -23,7 +23,7 @@ pub async fn init_bot(token: &str, bot_name: &str, database_url: &str, author_id
     let reddit_client = RedditClient::new();
     let telegram_client = TelegramClient::new(token.to_string());
 
-    let handle_message_closure = |data: String, user_id: String| {
+    let handle_message_closure = |data: String, user_id: String, is_mentioned: bool| {
         handle_message(
             &db,
             &telegram_client,
@@ -31,6 +31,7 @@ pub async fn init_bot(token: &str, bot_name: &str, database_url: &str, author_id
             author_id,
             data,
             user_id,
+            is_mentioned,
         )
     };
 
@@ -41,7 +42,7 @@ pub async fn init_bot(token: &str, bot_name: &str, database_url: &str, author_id
                 UpdateKind::Message(message) => {
                     if let MessageKind::Text { data, .. } = message.kind {
                         let user_id = message.from.id.to_string();
-                        if let Err(e) = handle_message_closure(data, user_id.clone()).await {
+                        if let Err(e) = handle_message_closure(data, user_id.clone(), true).await {
                             error!("error handling message: {}", e);
                             telegram_client
                                 .send_message(&Message {
@@ -78,7 +79,7 @@ pub async fn init_bot(token: &str, bot_name: &str, database_url: &str, author_id
                         }
                     }
 
-                    if let Err(e) = handle_message_closure(data, user_id.clone()).await {
+                    if let Err(e) = handle_message_closure(data, user_id.clone(), true).await {
                         error!("error handling message in callback query: {}", e);
                         telegram_client
                             .send_message(&Message {
@@ -93,13 +94,17 @@ pub async fn init_bot(token: &str, bot_name: &str, database_url: &str, author_id
                 UpdateKind::ChannelPost(post) => {
                     if let MessageKind::Text { data, .. } = post.kind {
                         let mut parsed_data = data;
+                        let mut is_mentioned = false;
                         // If message ends with bot_name. Replace bot_name with empty string.
                         if parsed_data.ends_with(bot_name) {
                             parsed_data = parsed_data.replace(&format!("@{}", bot_name), "");
+                            is_mentioned = true;
                         }
 
                         let user_id = post.chat.id.to_string();
-                        if let Err(e) = handle_message_closure(parsed_data, user_id.clone()).await {
+                        if let Err(e) =
+                            handle_message_closure(parsed_data, user_id.clone(), is_mentioned).await
+                        {
                             error!("error handling channel post: {}", e);
                             telegram_client
                                 .send_message(&Message {
@@ -125,6 +130,7 @@ async fn handle_message(
     author_id: &str,
     payload: String,
     user_id: String,
+    is_mentioned: bool,
 ) -> Result<(), BotError> {
     info!("received message from: {}, message: {}", user_id, payload);
 
@@ -166,13 +172,15 @@ async fn handle_message(
                 }
             }
 
-            telegram_client
-                .send_message(&Message {
-                    chat_id: &user_id,
-                    text: "I didn't get that. Use /help to see list of available commands.",
-                    ..Default::default()
-                })
-                .await?;
+            if is_mentioned {
+                telegram_client
+                    .send_message(&Message {
+                        chat_id: &user_id,
+                        text: "I didn't get that. Use /help to see list of available commands.",
+                        ..Default::default()
+                    })
+                    .await?;
+            }
         }
     }
     Ok(())

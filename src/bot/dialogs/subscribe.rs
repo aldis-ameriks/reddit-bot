@@ -66,7 +66,7 @@ impl Dialog<Subscribe> {
                 telegram_client
                     .send_message(&Message {
                         chat_id: &self.user_id,
-                        text: "Type the name of subreddit you want to subscribe to.\nMultiple subreddits are allowed, separated by whitespace.",
+                        text: "Type the name of subreddit you want to subscribe to.\nMultiple subreddits are allowed, separated by whitespace or newline.",
                         ..Default::default()
                     })
                     .await?;

@@ -5,7 +5,9 @@ use diesel::result::DatabaseErrorKind;
 use diesel::result::Error::DatabaseError;
 use log::error;
 use num::traits::FromPrimitive;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::iter::FromIterator;
 use strum_macros::{Display, EnumString};
 
 use crate::bot::dialogs::Dialog;
@@ -22,6 +24,20 @@ pub enum Subscribe {
     Subreddit,
     Weekday,
     Time,
+}
+
+fn parse_subreddits(subreddits: &str) -> Vec<String> {
+    let result = subreddits
+        .replace("r/", "")
+        .replace("\n", " ")
+        .trim()
+        .to_string();
+    let re = Regex::new(r"\s\s+").unwrap();
+    let result = re.replace_all(&result, " ").to_string();
+    let mut result = Vec::from_iter(result.split(' ').map(String::from));
+    result.sort();
+    result.dedup();
+    result
 }
 
 impl Dialog<Subscribe> {
@@ -56,12 +72,8 @@ impl Dialog<Subscribe> {
                     .await?;
             }
             Subscribe::Subreddit => {
-                let subreddits = self
-                    .data
-                    .get(&Subscribe::Subreddit)
-                    .unwrap()
-                    .replace("r/", "");
-                let subreddits: Vec<&str> = subreddits.split(" ").collect();
+                let subreddits = self.data.get(&Subscribe::Subreddit).unwrap();
+                let subreddits = parse_subreddits(subreddits);
 
                 for subreddit in subreddits {
                     if !reddit_client.validate_subreddit(&subreddit).await {
@@ -188,5 +200,41 @@ impl Dialog<Subscribe> {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::bot::dialogs::subscribe::parse_subreddits;
+
+    #[test]
+    fn test_parse_subreddits() {
+        let input = "aaa bbb ccc";
+        let result = parse_subreddits(input);
+        assert_eq!(result, ["aaa", "bbb", "ccc"]);
+
+        let input = "ccc xxx aaa bbb";
+        let result = parse_subreddits(input);
+        assert_eq!(result, ["aaa", "bbb", "ccc", "xxx"]);
+
+        let input = "aaa bbb bbb ccc bbb";
+        let result = parse_subreddits(input);
+        assert_eq!(result, ["aaa", "bbb", "ccc"]);
+
+        let input = "\n\n  \n aaa\n\n bbb\n  bbb\n\n \n  ccc bbb\n \n";
+        let result = parse_subreddits(input);
+        assert_eq!(result, ["aaa", "bbb", "ccc"]);
+
+        let input = "aaa\nbbb\nccc\n";
+        let result = parse_subreddits(input);
+        assert_eq!(result, ["aaa", "bbb", "ccc"]);
+
+        let input = "aaa \nbbb \nccc \n";
+        let result = parse_subreddits(input);
+        assert_eq!(result, ["aaa", "bbb", "ccc"]);
+
+        let input = "\n\n  \n r/aaa\n\n r/bbb\n  bbb\n\n \n  r/ccc bbb\n \n";
+        let result = parse_subreddits(input);
+        assert_eq!(result, ["aaa", "bbb", "ccc"]);
     }
 }

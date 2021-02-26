@@ -132,12 +132,9 @@ impl Dialog<Subscribe> {
                     .await?;
             }
             Subscribe::Time => {
-                let subreddits = self
-                    .data
-                    .get(&Subscribe::Subreddit)
-                    .unwrap()
-                    .replace("r/", "");
-                let subreddits: Vec<&str> = subreddits.split(" ").collect();
+                let subreddits = self.data.get(&Subscribe::Subreddit).unwrap();
+                let subreddits = parse_subreddits(subreddits);
+
                 let day = self
                     .data
                     .get(&Subscribe::Weekday)

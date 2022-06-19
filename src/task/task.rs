@@ -22,7 +22,7 @@ pub fn init_task(token: String, database_url: String) {
 
     thread::spawn(move || {
         let result = std::panic::catch_unwind(move || {
-            let mut rt = Runtime::new().unwrap();
+            let rt = Runtime::new().unwrap();
 
             rt.block_on(async {
                 loop {

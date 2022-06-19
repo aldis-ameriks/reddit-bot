@@ -1,8 +1,8 @@
 use std::error::Error;
+use std::fmt::Formatter;
 use std::fmt;
 
 use reqwest::Error as ReqwestError;
-use serde::export::Formatter;
 use serde_json::error::Error as SerdeError;
 
 #[derive(Debug)]

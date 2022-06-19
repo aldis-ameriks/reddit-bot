@@ -1,5 +1,6 @@
 use log::{error, warn};
 use serde_json::Value;
+use tokio::time::{sleep, Duration};
 
 use super::error::RedditError;
 use super::post::Post;
@@ -25,6 +26,22 @@ impl RedditClient {
     pub async fn fetch_posts(&self, subreddit: &str) -> Result<Vec<Post>, RedditError> {
         let url = format!("{}/r/{}/top.json?limit=10&t=week", self.base_url, subreddit);
         let res = reqwest::get(&url).await?;
+
+        if let Some(remaining) = res.headers().get("x-ratelimit-remaining") {
+            let remaining_request_count: u64 =
+                remaining.to_str().unwrap().to_string().parse().unwrap();
+            if remaining_request_count < 20 {
+                if let Some(reset) = res.headers().get("x-ratelimit-reset") {
+                    let reset: u64 = reset.to_str().unwrap().to_string().parse().unwrap();
+                    warn!(
+                        "running out of remaining reddit requests, sleeping for: {} seconds",
+                        reset
+                    );
+                    sleep(Duration::from_secs(reset)).await;
+                }
+            }
+        }
+
         let body = res.text().await?;
         let body: Value = serde_json::from_str(&body)?;
 

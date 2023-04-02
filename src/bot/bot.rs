@@ -134,6 +134,14 @@ async fn handle_message(
 ) -> Result<(), BotError> {
     info!("received message from: {}, message: {}", user_id, payload);
 
+    if user_id != author_id {
+        warn!(
+            "non author ({}) attempted to interact with the bot",
+            user_id
+        );
+        return Ok(());
+    }
+
     // TODO: Extract commands as enum
     match payload.as_ref() {
         "/start" => start(&telegram_client, &db, &user_id).await?,

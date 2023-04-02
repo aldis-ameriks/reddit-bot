@@ -1,6 +1,6 @@
 use std::error::Error;
-use std::fmt::Formatter;
 use std::fmt;
+use std::fmt::Formatter;
 
 use reqwest::Error as ReqwestError;
 use serde_json::error::Error as SerdeError;

@@ -1,6 +1,7 @@
 use log::{error, warn};
 use serde_json::Value;
 use tokio::time::{sleep, Duration};
+use ua_generator::ua::spoof_ua;
 
 use super::error::RedditError;
 use super::post::Post;
@@ -11,12 +12,9 @@ pub struct RedditClient {
 
 impl RedditClient {
     pub fn new() -> Self {
-        RedditClient {
-            base_url: String::from("https://reddit.com"),
-        }
+        RedditClient::new_with("https://reddit.com")
     }
 
-    #[allow(dead_code)]
     pub fn new_with(base_url: &str) -> Self {
         RedditClient {
             base_url: base_url.to_string(),
@@ -25,7 +23,11 @@ impl RedditClient {
 
     pub async fn fetch_posts(&self, subreddit: &str) -> Result<Vec<Post>, RedditError> {
         let url = format!("{}/r/{}/top.json?limit=10&t=week", self.base_url, subreddit);
-        let res = reqwest::get(&url).await?;
+        let client = reqwest::Client::builder()
+            .user_agent(spoof_ua())
+            .build()
+            .unwrap();
+        let res = client.get(&url).send().await?;
 
         if let Some(remaining) = res.headers().get("x-ratelimit-remaining") {
             let remaining_request_count: u64 =

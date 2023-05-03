@@ -198,7 +198,7 @@ pub async fn send_now(
                 error!("failed to process subscription: {}", err);
             }
         }
-        thread::sleep(Duration::from_secs(1));
+        thread::sleep(Duration::from_secs(30));
     }
 
     Ok(())

@@ -1,4 +1,5 @@
 use log::{error, warn};
+use reqwest::Client;
 use serde_json::Value;
 use tokio::time::{sleep, Duration};
 use ua_generator::ua::spoof_ua;
@@ -23,10 +24,7 @@ impl RedditClient {
 
     pub async fn fetch_posts(&self, subreddit: &str) -> Result<Vec<Post>, RedditError> {
         let url = format!("{}/r/{}/top.json?limit=10&t=week", self.base_url, subreddit);
-        let client = reqwest::Client::builder()
-            .user_agent(spoof_ua())
-            .build()
-            .unwrap();
+        let client = self.get_client();
         let res = client.get(&url).send().await?;
 
         if let Some(remaining) = res.headers().get("x-ratelimit-remaining") {
@@ -86,12 +84,17 @@ impl RedditClient {
 
     pub async fn validate_subreddit(&self, subreddit: &str) -> bool {
         let url = format!("{}/r/{}", self.base_url, subreddit);
+        let client = self.get_client();
 
-        if let Ok(resp) = reqwest::get(&url).await {
+        if let Ok(resp) = client.get(&url).send().await {
             resp.status().is_success()
         } else {
             false
         }
+    }
+
+    fn get_client(&self) -> Client {
+        Client::builder().user_agent(spoof_ua()).build().unwrap()
     }
 }
 

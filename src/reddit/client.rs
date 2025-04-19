@@ -29,7 +29,7 @@ impl RedditClient {
 
         if let Some(remaining) = res.headers().get("x-ratelimit-remaining") {
             let remaining_request_count: u64 =
-                remaining.to_str().unwrap().to_string().parse().unwrap();
+                remaining.to_str().unwrap().to_string().parse::<f64>().unwrap().trunc() as u64;
             if remaining_request_count < 20 {
                 if let Some(reset) = res.headers().get("x-ratelimit-reset") {
                     let reset: u64 = reset.to_str().unwrap().to_string().parse().unwrap();
